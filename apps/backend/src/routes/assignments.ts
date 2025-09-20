@@ -174,7 +174,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
 
     // Check if assignment exists and belongs to this admin
     const existingAssignment = await prisma.contentAssignment.findUnique({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       select: { id: true, assignedById: true, status: true }
     });
 
@@ -189,7 +189,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     const { topic, prerequisiteTopics, guidelines, contentType, difficulty, dueDate, status } = parsed.data;
     
     const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       data: {
         ...(topic && { topic }),
         ...(prerequisiteTopics && { prerequisiteTopics }),
@@ -246,7 +246,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
 
     // Check if assignment exists and is assigned to this creator
     const assignment = await prisma.contentAssignment.findUnique({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, status: true, topic: true }
     });
 
@@ -263,7 +263,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
     }
 
     const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       data: { status: 'IN_PROGRESS' },
       include: {
         assignedTo: {
@@ -307,7 +307,7 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
 
     // Verify assignment belongs to creator
     const assignment = await prisma.contentAssignment.findUnique({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, contentId: true, topic: true }
     });
 
@@ -339,7 +339,7 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
 
     // Link content to assignment and mark as completed
     const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       data: { 
         contentId: contentId,
         status: 'COMPLETED'
@@ -392,7 +392,7 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
 
     // Check if assignment exists and belongs to this admin
     const assignment = await prisma.contentAssignment.findUnique({
-      where: { id: assignmentId },
+      where: { id: assignmentId as string },
       select: { id: true, assignedById: true, topic: true, contentId: true }
     });
 
@@ -409,7 +409,7 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
     }
 
     await prisma.contentAssignment.delete({
-      where: { id: assignmentId }
+      where: { id: assignmentId as string }
     });
 
     // Log the action

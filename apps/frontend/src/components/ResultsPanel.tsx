@@ -23,11 +23,6 @@ type Props = {
   validationError?: string | null
 }
 
-function band(score: number) {
-  if (score > 85) return 'green'
-  if (score >= 70) return 'yellow'
-  return 'red'
-}
 
 export function ResultsPanel({ result, onValidate, isValidating, validationError }: Props) {
   if (!result && !isValidating && !validationError) {
@@ -117,7 +112,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
     )
   }
   
-  const { overallScore, providers, criteria, overallConfidence, processingTime } = result
+  const { overallScore, providers, criteria, overallConfidence, processingTime } = result!
   const qualityLabel = overallScore > 85 ? 'Good' : overallScore >= 70 ? 'Fair' : 'Needs work'
   const qualityColor = overallScore > 85 ? 'text-green-600' : overallScore >= 70 ? 'text-yellow-600' : 'text-red-600'
 
@@ -143,13 +138,13 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
               <span className="text-sm font-medium text-blue-800">Dual-LLM Analysis</span>
             </div>
             <p className="text-xs text-blue-700">
-              Validated using {providers.length} LLM provider{providers.length > 1 ? 's' : ''}: {providers.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}
+              Validated using {providers.length} LLM provider{providers.length > 1 ? 's' : ''}: {providers.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}
             </p>
           </div>
         )}
 
         {/* Assignment Context Display */}
-        {result.assignmentContext && (
+        {result!.assignmentContext && (
           <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,14 +156,14 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
             <div className="space-y-2 text-sm">
               <div>
                 <span className="font-medium text-purple-800">Topic:</span>
-                <span className="ml-2 text-purple-700">{result.assignmentContext.topic}</span>
+                <span className="ml-2 text-purple-700">{result!.assignmentContext.topic}</span>
               </div>
               
-              {result.assignmentContext.prerequisiteTopics.length > 0 && (
+              {result!.assignmentContext.prerequisiteTopics.length > 0 && (
                 <div>
                   <span className="font-medium text-purple-800">Prerequisites:</span>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {result.assignmentContext.prerequisiteTopics.map((topic, index) => (
+                    {result!.assignmentContext.prerequisiteTopics.map((topic, index) => (
                       <span key={index} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                         {topic}
                       </span>
@@ -177,7 +172,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
                 </div>
               )}
               
-              {result.assignmentContext.hasGuidelines && (
+              {result!.assignmentContext.hasGuidelines && (
                 <div className="flex items-center gap-1 text-purple-700">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -257,7 +252,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
                 ...(criteria.relevance.suggestions || []),
                 ...(criteria.continuity.suggestions || []),
                 ...(criteria.documentation.suggestions || []),
-                ...(criteria.documentation.issues?.map(iss => iss.message) || [])
+                ...(criteria.documentation.issues?.map((iss: any) => iss.message) || [])
               ].filter(Boolean).slice(0, 5);
 
               if (allSuggestions.length === 0) {

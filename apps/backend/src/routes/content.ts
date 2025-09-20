@@ -348,8 +348,8 @@ contentRouter.put('/:id', requireAuth, requireRole(['CREATOR']), async (req: Req
     }
 
     // Calculate metadata
-    const wordCount = countWords(content);
-    const readingTime = calculateReadingTime(content);
+    const wordCount = content ? countWords(content) : existingContent.wordCount;
+    const readingTime = content ? calculateReadingTime(content) : existingContent.readingTime;
 
     const updatedContent = await prisma.content.update({
       where: { id: contentId },

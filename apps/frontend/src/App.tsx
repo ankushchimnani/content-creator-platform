@@ -102,9 +102,9 @@ function App() {
       ) : (
         // Role-based Dashboard Routing
         user?.role === 'ADMIN' ? (
-          <AdminDashboard user={user} token={token} onLogout={logout} />
+          <AdminDashboard user={user} token={token!} onLogout={logout} />
         ) : (
-          <CreatorDashboard user={user} token={token} onLogout={logout} />
+          <CreatorDashboard user={user!} token={token!} onLogout={logout} />
         )
       )}
     </div>

@@ -17,7 +17,7 @@ type Props = {
 
 type EditorMode = 'visual' | 'markdown'
 
-export function EditorSplit({ value, onChange, preview = true, issues = [] }: Props) {
+export function EditorSplit({ value, onChange, issues = [] }: Props) {
   // const cmRef = useRef<HTMLDivElement | null>(null)
   // const [cmView, setCmView] = useState<EditorView | null>(null)
   const monacoRef = useRef<Parameters<OnMount>[0] | null>(null)

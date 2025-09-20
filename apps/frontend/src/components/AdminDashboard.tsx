@@ -108,7 +108,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        await res.json();
         // Remove from review queue
         setReviewQueue(reviewQueue.filter(c => c.id !== selectedContent.id));
         setSelectedContent(null);

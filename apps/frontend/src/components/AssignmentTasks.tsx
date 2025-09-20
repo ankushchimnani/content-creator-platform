@@ -36,7 +36,7 @@ type Props = {
   onCreateContent: (assignment: Assignment) => void;
 };
 
-export function AssignmentTasks({ user, token, onCreateContent }: Props) {
+export function AssignmentTasks({ token, onCreateContent }: Props) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
@@ -81,32 +81,6 @@ export function AssignmentTasks({ user, token, onCreateContent }: Props) {
     }
   };
 
-  const linkContentToAssignment = async (assignmentId: string, contentId: string) => {
-    try {
-      const res = await fetch(`/api/assignments/${assignmentId}/link-content`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ contentId })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setAssignments(assignments.map(a => 
-          a.id === assignmentId ? data.assignment : a
-        ));
-        alert('Content linked to assignment successfully!');
-      } else {
-        const error = await res.json();
-        alert(`Failed to link content: ${error.error}`);
-      }
-    } catch (error) {
-      console.error('Failed to link content:', error);
-      alert('Failed to link content');
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
