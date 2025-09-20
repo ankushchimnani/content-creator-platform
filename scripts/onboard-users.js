@@ -1,43 +1,30 @@
 #!/usr/bin/env node
 
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('../node_modules/@prisma/client');
 const bcrypt = require('bcryptjs');
 
 // Configuration
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/contentdb';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://dbmasteruser:q`BNMkg0Hj27][s|noD0$F|2JA%fY|y+@ls-014fe19ad197d5b4dd4723fcfe7c1a30f31958e6.cnnmb0uabgzc.ap-south-1.rds.amazonaws.com:5432/postgres';
 
 // Sample users data - modify this array with your actual users
 const USERS_TO_CREATE = [
   {
-    email: 'admin@example.com',
+    email: 'admin@masaischool.com',
     password: 'admin123',
-    name: 'Admin User',
+    name: 'Masai School Admin',
     role: 'ADMIN'
   },
   {
-    email: 'creator1@example.com',
+    email: 'creator@masaischool.com',
     password: 'creator123',
-    name: 'Creator One',
+    name: 'Masai School Creator',
     role: 'CREATOR'
-  },
-  {
-    email: 'creator2@example.com',
-    password: 'creator123',
-    name: 'Creator Two',
-    role: 'CREATOR'
-  },
-  {
-    email: 'admin2@example.com',
-    password: 'admin123',
-    name: 'Admin Two',
-    role: 'ADMIN'
   }
 ];
 
 // Admin assignments for creators (optional)
 const CREATOR_ADMIN_ASSIGNMENTS = {
-  'creator1@example.com': 'admin@example.com',  // creator1 assigned to admin
-  'creator2@example.com': 'admin2@example.com'  // creator2 assigned to admin2
+  'creator@masaischool.com': 'admin@masaischool.com'  // creator assigned to admin
 };
 
 async function createUsers() {
@@ -77,7 +64,7 @@ async function createUsers() {
         const user = await prisma.user.create({
           data: {
             email: userData.email,
-            password: hashedPassword,
+            passwordHash: hashedPassword,
             name: userData.name,
             role: userData.role
           }

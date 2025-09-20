@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiCall } from '../utils/api';
 import { AssignmentManager } from './AssignmentManager';
 
 type User = {
@@ -64,7 +65,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
 
   const fetchReviewQueue = async () => {
     try {
-      const res = await fetch('/api/admin/review-queue', {
+      const res = await apiCall('/api/admin/review-queue', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -78,7 +79,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/admin/stats', {
+      const res = await apiCall('/api/admin/stats', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -95,7 +96,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
 
     setIsReviewing(true);
     try {
-      const res = await fetch(`/api/content/${selectedContent.id}/review`, {
+      const res = await apiCall(`/api/content/${selectedContent.id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

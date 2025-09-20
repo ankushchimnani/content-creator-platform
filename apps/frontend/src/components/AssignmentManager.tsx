@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiCall } from '../utils/api';
 
 type User = {
   id: string;
@@ -71,7 +72,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('/api/assignments', {
+      const res = await apiCall('/api/assignments', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -85,7 +86,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const fetchAssignedCreators = async () => {
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await apiCall('/api/admin/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -103,7 +104,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const createAssignment = async () => {
     try {
-      const res = await fetch('/api/assignments', {
+      const res = await apiCall('/api/assignments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +139,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const updateAssignment = async (assignmentId: string) => {
     try {
-      const res = await fetch(`/api/assignments/${assignmentId}`, {
+      const res = await apiCall(`/api/assignments/${assignmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +175,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
     if (!confirm('Are you sure you want to delete this assignment?')) return;
 
     try {
-      const res = await fetch(`/api/assignments/${assignmentId}`, {
+      const res = await apiCall(`/api/assignments/${assignmentId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

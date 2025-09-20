@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiCall } from '../utils/api';
 import { EditorSplit } from './EditorSplit';
 import { ResultsPanel } from './ResultsPanel';
 import { AssignmentTasks } from './AssignmentTasks';
@@ -96,7 +97,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
 
   const fetchContents = async () => {
     try {
-      const res = await fetch('/api/content', {
+      const res = await apiCall('/api/content', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -110,7 +111,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
 
   const createContent = async () => {
     try {
-      const res = await fetch('/api/content', {
+      const res = await apiCall('/api/content', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +148,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
   const submitForReview = async (contentId: string) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/content/submit', {
+      const res = await apiCall('/api/content/submit', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -177,7 +178,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
 
   const updateContent = async (contentId: string, updatedData: { title: string; content: string; brief?: string; contentType?: string; difficulty?: string }) => {
     try {
-      const res = await fetch(`/api/content/${contentId}`, {
+      const res = await apiCall(`/api/content/${contentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +213,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
     setValidationError(null);
     
     try {
-      const res = await fetch('/api/validate', {
+      const res = await apiCall('/api/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -639,7 +640,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
                         if (creatingFromAssignment && contents[0]) {
                           try {
                             const created = contents[0];
-                            await fetch(`/api/assignments/${creatingFromAssignment.id}/link-content`, {
+                            await apiCall(`/api/assignments/${creatingFromAssignment.id}/link-content`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                               body: JSON.stringify({ contentId: created.id })

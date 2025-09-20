@@ -15,7 +15,10 @@ const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
 app.use(pinoHttp({ logger }));
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: ['https://content-api.masaischool.com', 'http://localhost:5173', 'http://localhost:3000'],
+  credentials: true
+}));
 app.use(express.json());
 
 app.get('/health', (_req: Request, res: Response) => {
@@ -29,6 +32,6 @@ app.use('/api/admin', adminRouter);
 app.use('/api/assignments', assignmentsRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
-app.listen(port, '127.0.0.1', () => {
+app.listen(port, '0.0.0.0', () => {
   logger.info({ port }, 'Backend listening');
 });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { CreatorDashboard } from './components/CreatorDashboard'
 import { AdminDashboard } from './components/AdminDashboard'
+import { apiCall } from './utils/api'
 
 type LoginResponse = { 
   token: string; 
@@ -27,11 +28,11 @@ function App() {
   const isAuthed = useMemo(() => !!token && !!user, [token, user])
 
   useEffect(() => {
-    fetch('/health').catch(() => {})
+    apiCall('/health').catch(() => {})
   }, [])
 
   const login = async () => {
-    const res = await fetch('/api/auth/login', {
+    const res = await apiCall('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),

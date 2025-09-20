@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiCall } from '../utils/api';
 
 type User = {
   id: string;
@@ -46,7 +47,7 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
 
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('/api/assignments/my-tasks', {
+      const res = await apiCall('/api/assignments/my-tasks', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -60,7 +61,7 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
 
   const startAssignment = async (assignmentId: string) => {
     try {
-      const res = await fetch(`/api/assignments/${assignmentId}/start`, {
+      const res = await apiCall(`/api/assignments/${assignmentId}/start`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
