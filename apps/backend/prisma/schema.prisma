@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CREATOR
+  REVIEWER
+  ADMIN
+}
+
+enum ContentStatus {
+  DRAFT
+  VALIDATING
+  REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ContentType {
+  PRE_READ
+  ASSIGNMENT
+  LECTURE_NOTE
+}
+
+enum LLMProvider {
+  OPENAI
+  ANTHROPIC
+  LOCAL
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  role         Role          @default(CREATOR)
+  passwordHash String
+  preferences  Json?
+  createdAt    DateTime      @default(now())
+  lastLogin    DateTime?
+
+  // Admin assignment for creators
+  assignedAdminId String?
+  assignedAdmin   User?   @relation("CreatorAdminAssignment", fields: [assignedAdminId], references: [id])
+  assignedCreators User[] @relation("CreatorAdminAssignment")
+
+  // Relations
+  contents     Content[]     @relation("ContentAuthor")
+  reviewedContents Content[] @relation("ContentReviewer")
+  guidelines   Guideline[]   @relation("GuidelineCreatedBy")
+  sessions     UserSession[]
+  auditLogs    AuditLog[]
+  
+  // Assignment relations
+  createdAssignments ContentAssignment[] @relation("AssignmentCreatedBy")
+  assignedTasks      ContentAssignment[] @relation("AssignmentAssignedTo")
+}
+
+model Content {
+  id              String            @id @default(cuid())
+  title           String
+  content         String            @db.Text
+  brief           String?           @db.Text // Topics/requirements for validation
+  status          ContentStatus     @default(DRAFT)
+  contentType     ContentType       @default(LECTURE_NOTE)
+
+  // Flattened metadata fields from PRD
+  wordCount       Int               @default(0)
+  readingTime     Int               @default(0) // minutes
+  tags            String[]
+  category        String?
+  
+  // Assignment-specific fields
+  difficulty      String?           // For ASSIGNMENT type: EASY, MEDIUM, HARD
+  
+  // Version tracking
+  version         Int               @default(1)
+  rejectionCount  Int               @default(0)
+
+  // Review workflow fields
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  reviewFeedback  String?           @db.Text
+
+  // Timestamps
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  author          User              @relation("ContentAuthor", fields: [authorId], references: [id])
+  authorId        String
+  reviewer        User?             @relation("ContentReviewer", fields: [reviewerId], references: [id])
+  reviewerId      String?
+  validationResults ValidationResult[]
+  versions        ContentVersion[]
+  
+  // Assignment relation
+  assignment      ContentAssignment? @relation("AssignmentContent")
+}
+
+model ContentVersion {
+  id        String   @id @default(cuid())
+  contentId String
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  contentRef Content @relation(fields: [contentId], references: [id])
+}
+
+model ValidationResult {
+  id            String       @id @default(cuid())
+  contentId     String
+  llmProvider   LLMProvider
+  modelVersion  String
+
+  // Criteria aggregated JSON containing relevance, continuity, documentation results
+  criteria      Json
+
+  overallScore     Float
+  processingTimeMs Int
+  createdAt        DateTime    @default(now())
+
+  contentRef    Content     @relation(fields: [contentId], references: [id])
+}
+
+model Guideline {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+
+  // Criteria JSON containing relevance, continuity, documentation with weights and rules
+  criteria    Json
+
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Creator relation
+  createdById String
+  createdBy   User      @relation("GuidelineCreatedBy", fields: [createdById], references: [id])
+}
+
+model UserSession {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model ContentAssignment {
+  id              String      @id @default(cuid())
+  topic           String      // Topic to be delivered
+  prerequisiteTopics String[] // Topics taught till that point
+  guidelines      String?     @db.Text // Optional guidelines
+  contentType     ContentType @default(LECTURE_NOTE) // Type of content to create
+  difficulty      String?     // For ASSIGNMENT type: EASY, MEDIUM, HARD
+  dueDate         DateTime?
+  status          String      @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, COMPLETED, OVERDUE
+  
+  // Relations
+  assignedById    String   // Admin who created the assignment
+  assignedBy      User     @relation("AssignmentCreatedBy", fields: [assignedById], references: [id])
+  assignedToId    String   // Creator assigned to
+  assignedTo      User     @relation("AssignmentAssignedTo", fields: [assignedToId], references: [id])
+  
+  // Optional link to created content
+  contentId       String?  @unique
+  content         Content? @relation("AssignmentContent", fields: [contentId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+}

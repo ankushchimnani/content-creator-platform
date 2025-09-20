@@ -1,0 +1,5 @@
+
+> @cvp/backend@1.0.0 dev
+> tsx watch src/index.ts
+
+🚀 Backend server listening on http://127.0.0.1:4000
