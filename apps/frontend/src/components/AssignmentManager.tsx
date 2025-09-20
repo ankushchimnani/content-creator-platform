@@ -41,7 +41,7 @@ type Props = {
 };
 
 export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed, onSwitchToReview }: Props) {
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [tasks, setTasks] = useState<Assignment[]>([]);
   const [assignedCreators, setAssignedCreators] = useState<User[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
@@ -76,7 +76,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
       });
       if (res.ok) {
         const data = await res.json();
-        setAssignments(data.assignments);
+        setTasks(data.assignments);
       }
     } catch (error) {
       console.error('Failed to fetch assignments:', error);
@@ -122,7 +122,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
       if (res.ok) {
         const data = await res.json();
-        setAssignments([data.assignment, ...assignments]);
+        setTasks([data.assignment, ...tasks]);
         resetForm();
         setIsCreating(false);
         alert('Assignment created successfully!');
@@ -156,7 +156,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
       if (res.ok) {
         const data = await res.json();
-        setAssignments(assignments.map(a => a.id === assignmentId ? data.assignment : a));
+        setTasks(tasks.map(a => a.id === assignmentId ? data.assignment : a));
         resetForm();
         setEditingAssignment(null);
         alert('Assignment updated successfully!');
@@ -180,7 +180,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
       });
 
       if (res.ok) {
-        setAssignments(assignments.filter(a => a.id !== assignmentId));
+        setTasks(tasks.filter(a => a.id !== assignmentId));
         alert('Assignment deleted successfully!');
       } else {
         const error = await res.json();
@@ -253,12 +253,12 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-text-light">Content Assignments</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-text-light">Content Tasks</h2>
           <p className="text-sm sm:text-base text-subtle-light">
             Assign content creation tasks to your creators
-            {assignments.filter(a => a.content?.status === 'REVIEW').length > 0 && (
+            {tasks.filter(a => a.content?.status === 'REVIEW').length > 0 && (
               <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full font-medium">
-                {assignments.filter(a => a.content?.status === 'REVIEW').length} ready for review
+                {tasks.filter(a => a.content?.status === 'REVIEW').length} ready for review
               </span>
             )}
           </p>
@@ -268,7 +268,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium text-sm sm:text-base transition-colors flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-          <span className="hidden sm:inline">New Assignment</span>
+          <span className="hidden sm:inline">New Task</span>
           <span className="sm:hidden">+ New</span>
         </button>
       </div>
@@ -277,7 +277,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
       {(isCreating || editingAssignment) && (
         <div className="bg-surface-light rounded-lg shadow-sm border border-border-light p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-            {isCreating ? 'Create New Assignment' : 'Edit Assignment'}
+            {isCreating ? 'Create New Task' : 'Edit Task'}
           </h3>
           
           <div className="space-y-4">
@@ -435,7 +435,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                 disabled={!topic || !assignedToId}
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300"
               >
-                {editingAssignment ? 'Update Assignment' : 'Create Assignment'}
+                {editingAssignment ? 'Update Task' : 'Create Task'}
               </button>
             </div>
           </div>
@@ -445,12 +445,12 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
       {/* Assignments List */}
       <div className="bg-surface-light rounded-lg shadow-sm border border-border-light">
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">All Assignments</h3>
-          <p className="text-sm text-gray-500 mt-1">{assignments.length} assignments</p>
+          <h3 className="text-lg font-semibold text-gray-900">All Tasks</h3>
+          <p className="text-sm text-gray-500 mt-1">{tasks.length} tasks</p>
         </div>
         
         <div className="divide-y divide-gray-200">
-          {assignments.map((assignment) => (
+          {tasks.map((assignment) => (
             <div key={assignment.id} className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="flex-1">
@@ -568,18 +568,18 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
             </div>
           ))}
 
-          {assignments.length === 0 && (
+          {tasks.length === 0 && (
             <div className="p-12 text-center">
               <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Assignments Yet</h3>
-              <p className="text-gray-500 mb-4">Create your first content assignment to get started.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Tasks Yet</h3>
+              <p className="text-gray-500 mb-4">Create your first content task to get started.</p>
               <button
                 onClick={startCreating}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
               >
-                Create Assignment
+                Create Task
               </button>
             </div>
           )}

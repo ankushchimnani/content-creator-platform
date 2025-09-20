@@ -321,7 +321,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
                   : 'text-subtle-light hover:bg-gray-100'
               }`}
             >
-              Assignments
+              Tasks
             </button>
             <button className="bg-purple-100 text-purple-600 px-4 py-2 rounded-md text-sm font-medium">
               Settings

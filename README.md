@@ -7,12 +7,12 @@ This is a full-stack application designed to help manage and validate content cr
 ### Admin Dashboard
 - **Review Queue**: View all content submitted for review in a centralized location.
 - **Content Review**: Approve or reject content with detailed feedback.
-- **Assignment Management**: Create, edit, delete, and assign content tasks to creators.
+- **Task Management**: Create, edit, delete, and assign content tasks to creators.
 - **Statistics**: View key metrics like pending reviews, approval rates, and more.
 
 ### Creator Dashboard
 - **Content Management**: Create, edit, and manage all personal content.
-- **Assignment Tasks**: View and complete assignments given by admins.
+- **Task Management**: View and complete tasks given by admins.
 - **LLM Validation**: Get real-time feedback on content quality from an integrated LLM service.
 - **Feedback Loop**: View detailed feedback from admins on rejected or approved content.
 

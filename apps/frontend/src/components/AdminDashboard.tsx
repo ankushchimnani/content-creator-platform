@@ -206,13 +206,13 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
               }`}
             >
-              Assignments
+              Tasks
             </button>
             <button
               onClick={() => { setActiveTab('assignments'); setOpenCreateAssignment(true); }}
               className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
             >
-              + Create Assignment
+              + Create Task
             </button>
           </nav>
           

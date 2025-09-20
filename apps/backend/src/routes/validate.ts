@@ -21,11 +21,11 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   let assignmentContext: AssignmentContext | undefined;
   if (contentId) {
     try {
-      const contentRecord = await prisma.content.findUnique({
-        where: { id: contentId }
-      });
+      const contentRecord = await prisma.$queryRaw`
+        SELECT "contentType" FROM "Content" WHERE id = ${contentId}
+      ` as Array<{ contentType: string }>;
 
-      if (contentRecord) {
+      if (contentRecord.length > 0) {
         const assignment = await prisma.$queryRaw`
           SELECT topic, "prerequisiteTopics", guidelines 
           FROM "ContentAssignment" 
@@ -42,7 +42,8 @@ validateRouter.post('/', requireAuth, async (req, res) => {
             assignmentContext = {
               topic: assignmentData.topic,
               prerequisiteTopics: assignmentData.prerequisiteTopics,
-              guidelines: assignmentData.guidelines || undefined
+              guidelines: assignmentData.guidelines || undefined,
+              contentType: contentRecord[0]?.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
             };
           }
         }
@@ -105,7 +106,7 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
 
     // Fetch assignment details
     const assignmentQuery = await prisma.$queryRaw`
-      SELECT topic, "prerequisiteTopics", guidelines, "assignedToId", "assignedById"
+      SELECT topic, "prerequisiteTopics", guidelines, "assignedToId", "assignedById", "contentType"
       FROM "ContentAssignment" 
       WHERE id = ${assignmentId}
     ` as Array<{
@@ -114,6 +115,7 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
       guidelines: string | null;
       assignedToId: string;
       assignedById: string;
+      contentType: string;
     }>;
 
     if (assignmentQuery.length === 0) {
@@ -137,7 +139,8 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
     const assignmentContext: AssignmentContext = {
       topic: assignment?.topic || '',
       prerequisiteTopics: assignment?.prerequisiteTopics || [],
-      guidelines: assignment?.guidelines || undefined
+      guidelines: assignment?.guidelines || undefined,
+      contentType: assignment?.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
     };
 
     const start = Date.now();

@@ -12,6 +12,7 @@ export type AssignmentContext = {
   topic: string;
   prerequisiteTopics: string[];
   guidelines?: string | undefined;
+  contentType?: 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE';
 };
 
 export type ValidationOutput = {
@@ -29,36 +30,194 @@ function clamp(n: number, min = 0, max = 100) {
 }
 
 function buildPrompt(content: string, brief?: string, assignmentContext?: AssignmentContext) {
-  let prompt = `You are a content validation engine. Analyze the given markdown content and return strict JSON with numeric scores 0-100 for criteria: relevance, continuity, documentation, and short feedback strings.`;
-
   if (assignmentContext) {
-    prompt += `\n\n=== ASSIGNMENT CONTEXT ===`;
-    prompt += `\nRequired Topic: ${assignmentContext.topic}`;
-    
-    if (assignmentContext.prerequisiteTopics.length > 0) {
-      prompt += `\nPrerequisite Topics (should be referenced/built upon): ${assignmentContext.prerequisiteTopics.join(', ')}`;
-    }
-    
-    if (assignmentContext.guidelines) {
-      prompt += `\nSpecific Guidelines: ${assignmentContext.guidelines}`;
-    }
-    
-    prompt += `\n\n=== VALIDATION CRITERIA ===`;
-    prompt += `\n• RELEVANCE (0-100): How well does the content address the required topic "${assignmentContext.topic}"? Does it stay on topic and cover the subject comprehensively?`;
-    prompt += `\n• CONTINUITY (0-100): How well does the content build upon the prerequisite topics${assignmentContext.prerequisiteTopics.length > 0 ? ` (${assignmentContext.prerequisiteTopics.join(', ')})` : ''}? Is there logical flow and proper progression from known concepts?`;
-    prompt += `\n• DOCUMENTATION (0-100): How well does the content follow the specific guidelines${assignmentContext.guidelines ? ' provided' : ' and general best practices'}? Is it well-structured, clear, and properly formatted?`;
+    // Use content-type-specific prompts for assignment-related content
+    const prerequisites = assignmentContext.prerequisiteTopics.length > 0 
+      ? assignmentContext.prerequisiteTopics.join(', ') 
+      : 'N/A';
+    const guidelines = assignmentContext.guidelines || 'N/A';
+    const briefText = brief || 'N/A';
+    const contentType = assignmentContext.contentType || 'LECTURE_NOTE';
+
+    return buildContentTypePrompt(contentType, assignmentContext.topic, prerequisites, guidelines, briefText, content);
   } else {
+    // Keep the original simple prompt for standalone content
+    let prompt = `You are a content validation engine. Analyze the given markdown content and return strict JSON with numeric scores 0-100 for criteria: relevance, continuity, documentation, and short feedback strings.`;
+
     prompt += `\n\n=== VALIDATION CRITERIA ===`;
     prompt += `\n• RELEVANCE (0-100): How relevant and focused is the content?`;
     prompt += `\n• CONTINUITY (0-100): How well does the content flow and maintain logical progression?`;
     prompt += `\n• DOCUMENTATION (0-100): How well is the content structured and documented?`;
+
+    prompt += `\n\nBrief (optional): ${brief ?? 'N/A'}`;
+    prompt += `\n\nContent to validate:\n${content}`;
+    prompt += `\n\nReturn JSON only with keys: relevance, continuity, documentation, feedback: {relevance, continuity, documentation}.`;
+    
+    return prompt;
+  }
+}
+
+function buildContentTypePrompt(contentType: string, topic: string, prerequisites: string, guidelines: string, briefText: string, content: string): string {
+  const basePrompt = `# Content Validation Engine Prompt
+
+You are a precise content validation engine. Analyze the provided content and return a strict JSON response with numeric scores and feedback.
+
+## CRITICAL INSTRUCTIONS
+- Return ONLY valid JSON, no additional text or explanations
+- All scores must be integers from 0-100 (no decimals, ranges, or text)
+- If you cannot complete validation, return error JSON format shown below
+- Feedback strings must be exactly 50 words or fewer (truncate with "..." if needed)
+- Escape all quotes in feedback strings with \\"
+
+## Assignment Context
+- **Required Topic**: ${topic}
+- **Prerequisite Topics**: ${prerequisites}
+- **Specific Guidelines**: ${guidelines}
+- **Brief/Additional Context**: ${briefText}
+- **Content Type**: ${contentType}
+
+## Input Validation Rules
+If any critical error occurs, return this error format instead:
+\`\`\`json
+{
+  "error": "Error description here",
+  "validation_attempted": false
+}
+\`\`\`
+
+Common errors:
+- Required topic is empty/missing
+- Content is empty, over 15,000 characters, or contains only placeholders
+- Unable to generate valid JSON due to content issues`;
+
+  let contentTypeSpecificCriteria = '';
+
+  if (contentType === 'ASSIGNMENT') {
+    contentTypeSpecificCriteria = `
+## Validation Criteria & Conflict Resolution (ASSIGNMENT)
+
+### RELEVANCE (0-100)
+Score how well content addresses "${topic}" as an assignment:
+- **90-100**: Comprehensive assignment covering all required aspects, clear objectives, appropriate difficulty
+- **70-89**: Good assignment structure with minor gaps in objectives or scope
+- **50-69**: Adequate assignment but missing key learning objectives or unclear instructions
+- **30-49**: Poor assignment structure, unclear objectives, inappropriate difficulty
+- **0-29**: Not a valid assignment or completely off-topic
+
+### CONTINUITY (0-100)
+Score integration with prerequisites "${prerequisites}" for assignment progression:
+- **If prerequisites are "N/A", "none", or empty**: Score internal logical progression and skill building
+- **90-100**: Seamless skill progression, builds perfectly on prerequisites, appropriate challenge level
+- **70-89**: Good prerequisite integration with minor gaps in skill progression
+- **50-69**: Adequate prerequisite connection but some missing skill bridges
+- **30-49**: Weak prerequisite integration, inappropriate difficulty jump
+- **0-29**: No clear prerequisite connection or illogical skill progression
+
+### DOCUMENTATION (0-100)
+Score assignment structure and clarity:
+- **90-100**: Excellent assignment format, clear instructions, proper deliverables, good examples
+- **70-89**: Good assignment structure with minor clarity issues
+- **50-69**: Adequate structure but unclear instructions or missing deliverables
+- **30-49**: Poor assignment format, confusing instructions, missing key elements
+- **0-29**: Very poor structure, unclear objectives, inappropriate format`;
+  } else if (contentType === 'PRE_READ') {
+    contentTypeSpecificCriteria = `
+## Validation Criteria & Conflict Resolution (PRE-READ)
+
+### RELEVANCE (0-100)
+Score how well content addresses "${topic}" as preparatory material:
+- **90-100**: Comprehensive pre-read covering all essential background knowledge, perfect preparation
+- **70-89**: Good pre-read with minor gaps in background coverage
+- **50-69**: Adequate pre-read but missing important foundational concepts
+- **30-49**: Poor pre-read coverage, missing key background information
+- **0-29**: Not suitable as pre-read or completely off-topic
+
+### CONTINUITY (0-100)
+Score prerequisite integration "${prerequisites}" for pre-read effectiveness:
+- **If prerequisites are "N/A", "none", or empty**: Score internal logical flow and concept building
+- **90-100**: Perfect prerequisite coverage, seamless knowledge building, ideal preparation
+- **70-89**: Good prerequisite integration with minor knowledge gaps
+- **50-69**: Adequate prerequisite coverage but some missing foundational links
+- **30-49**: Weak prerequisite integration, knowledge gaps
+- **0-29**: No clear prerequisite connection or poor knowledge foundation
+
+### DOCUMENTATION (0-100)
+Score pre-read structure and clarity:
+- **90-100**: Excellent pre-read format, clear explanations, good examples, proper pacing
+- **70-89**: Good pre-read structure with minor clarity issues
+- **50-69**: Adequate structure but unclear explanations or poor pacing
+- **30-49**: Poor pre-read format, confusing explanations, inappropriate complexity
+- **0-29**: Very poor structure, unclear content, inappropriate for preparation`;
+  } else { // LECTURE_NOTE
+    contentTypeSpecificCriteria = `
+## Validation Criteria & Conflict Resolution (LECTURE NOTE)
+
+### RELEVANCE (0-100)
+Score how well content addresses "${topic}" as lecture material:
+- **90-100**: Comprehensive lecture note covering all key concepts, clear explanations, good examples
+- **70-89**: Good lecture coverage with minor gaps in concept explanation
+- **50-69**: Adequate lecture material but missing important concepts or unclear explanations
+- **30-49**: Poor lecture coverage, missing key concepts, unclear explanations
+- **0-29**: Not suitable as lecture material or completely off-topic
+
+### CONTINUITY (0-100)
+Score prerequisite integration "${prerequisites}" for lecture flow:
+- **If prerequisites are "N/A", "none", or empty**: Score internal logical flow and concept progression
+- **90-100**: Perfect prerequisite integration, seamless concept flow, ideal learning progression
+- **70-89**: Good prerequisite connection with minor flow issues
+- **50-69**: Adequate prerequisite integration but some missing concept bridges
+- **30-49**: Weak prerequisite integration, poor concept flow
+- **0-29**: No clear prerequisite connection or illogical concept progression
+
+### DOCUMENTATION (0-100)
+Score lecture note structure and clarity:
+- **90-100**: Excellent lecture format, clear structure, good examples, proper pacing
+- **70-89**: Good lecture structure with minor clarity issues
+- **50-69**: Adequate structure but unclear explanations or poor organization
+- **30-49**: Poor lecture format, confusing explanations, inappropriate complexity
+- **0-29**: Very poor structure, unclear content, inappropriate for learning`;
   }
 
-  prompt += `\n\nBrief (optional): ${brief ?? 'N/A'}`;
-  prompt += `\n\nContent to validate:\n${content}`;
-  prompt += `\n\nReturn JSON only with keys: relevance, continuity, documentation, feedback: {relevance, continuity, documentation}.`;
-  
-  return prompt;
+  const conflictResolution = `
+## Scoring Conflict Resolution
+- **High relevance + Poor prerequisites**: Cap continuity at maximum 40
+- **Boundary scores (68-72)**: Default to lower score unless content clearly merits higher
+- **Multiple topics covered**: Score based on required topic coverage only
+- **Contradictory content quality**: Weight most recent/specific evidence higher`;
+
+  const contentSection = `
+## Content to Validate
+\`\`\`
+${content}
+\`\`\``;
+
+  const outputFormat = `
+## Required Output Format
+Return ONLY this JSON structure (no additional text):
+
+\`\`\`json
+{
+  "relevance": 85,
+  "continuity": 72,
+  "documentation": 90,
+  "feedback": {
+    "relevance": "Content thoroughly covers the required topic with comprehensive examples and clear focus throughout.",
+    "continuity": "Builds well on most prerequisites but lacks clear connection to advanced concepts mentioned.",
+    "documentation": "Excellent structure and formatting. Follows all specified guidelines with minor spacing issues."
+  }
+}
+\`\`\``;
+
+  const checklist = `
+## Final Validation Checklist
+Before returning JSON, verify:
+- [ ] All scores are integers 0-100
+- [ ] Each feedback string is ≤50 words
+- [ ] All quotes in feedback are escaped with \\"
+- [ ] JSON is valid and parseable
+- [ ] If validation impossible, error format is used instead`;
+
+  return basePrompt + contentTypeSpecificCriteria + conflictResolution + contentSection + outputFormat + checklist;
 }
 
 export async function runOpenAIValidation(content: string, brief?: string, assignmentContext?: AssignmentContext): Promise<ValidationOutput> {
