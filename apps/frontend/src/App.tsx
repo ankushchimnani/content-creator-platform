@@ -21,15 +21,63 @@ type LoginResponse = {
 // Removed ValidateResponse as it's not needed in main App anymore
 
 function App() {
-  const [email, setEmail] = useState('creator1@example.com')
-  const [password, setPassword] = useState('Creator@123')
-  const [token, setToken] = useState<string | null>(null)
-  const [user, setUser] = useState<LoginResponse['user'] | null>(null)
+  const [email, setEmail] = useState('creator@masaischool.com')
+  const [password, setPassword] = useState('creator123')
+  const [token, setToken] = useState<string | null>(() => {
+    // Initialize from localStorage
+    return localStorage.getItem('cvp_token')
+  })
+  const [user, setUser] = useState<LoginResponse['user'] | null>(() => {
+    // Initialize from localStorage
+    const savedUser = localStorage.getItem('cvp_user')
+    return savedUser ? JSON.parse(savedUser) : null
+  })
+  const [isValidatingToken, setIsValidatingToken] = useState(false)
   const isAuthed = useMemo(() => !!token && !!user, [token, user])
 
   useEffect(() => {
     apiCall('/health').catch(() => {})
+    
+    // Validate stored token on app startup
+    if (token && user) {
+      setIsValidatingToken(true)
+      validateStoredToken().finally(() => setIsValidatingToken(false))
+    }
   }, [])
+
+  // Persist token to localStorage when it changes
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('cvp_token', token)
+    } else {
+      localStorage.removeItem('cvp_token')
+    }
+  }, [token])
+
+  // Persist user to localStorage when it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('cvp_user', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('cvp_user')
+    }
+  }, [user])
+
+  // Validate stored token by making a test API call
+  const validateStoredToken = async () => {
+    try {
+      const res = await apiCall('/api/content', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        // Token is invalid, clear auth state
+        logout()
+      }
+    } catch (error) {
+      // Token validation failed, clear auth state
+      logout()
+    }
+  }
 
   const login = async () => {
     const res = await apiCall('/api/auth/login', {
@@ -52,6 +100,22 @@ function App() {
   }
 
   // Validation logic moved to individual dashboard components
+
+  // Show loading spinner while validating token
+  if (isValidatingToken) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-12 h-12 mx-auto mb-4 text-blue-600">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <p className="text-gray-600">Validating session...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

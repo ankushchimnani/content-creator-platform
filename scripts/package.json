@@ -9,9 +9,13 @@
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
-    "bcryptjs": "^2.4.3"
+    "bcrypt": "^6.0.0"
   },
-  "keywords": ["user-management", "onboarding", "prisma"],
+  "keywords": [
+    "user-management",
+    "onboarding",
+    "prisma"
+  ],
   "author": "Content Validation Platform",
   "license": "MIT"
 }

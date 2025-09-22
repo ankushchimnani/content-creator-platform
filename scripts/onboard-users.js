@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require('../node_modules/@prisma/client');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 
 // Configuration
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://dbmasteruser:q`BNMkg0Hj27][s|noD0$F|2JA%fY|y+@ls-014fe19ad197d5b4dd4723fcfe7c1a30f31958e6.cnnmb0uabgzc.ap-south-1.rds.amazonaws.com:5432/postgres';
@@ -58,7 +58,7 @@ async function createUsers() {
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(userData.password, 12);
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
 
         // Create user
         const user = await prisma.user.create({
