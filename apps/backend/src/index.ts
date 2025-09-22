@@ -24,7 +24,9 @@ app.use(cors({
     'http://localhost:5174',  // Alternative Vite port
     'http://127.0.0.1:5173',  // Alternative localhost format
   ],
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 app.use(express.json());
 
