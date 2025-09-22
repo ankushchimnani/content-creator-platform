@@ -8,10 +8,14 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "npm --workspace apps/frontend run dev",
     "dev:backend": "npm --workspace apps/backend run dev",
+    "dev:backend-only": "npm --workspace apps/backend run dev",
+    "dev:frontend-only": "npm --workspace apps/frontend run dev",
     "build": "npm -ws run build",
-    "start:backend": "npm --workspace apps/backend start"
+    "start:backend": "npm --workspace apps/backend start",
+    "onboard-users": "cd scripts && node onboard-users.js"
   },
   "keywords": [],
   "author": "",
@@ -24,5 +28,8 @@
   ],
   "dependencies": {
     "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

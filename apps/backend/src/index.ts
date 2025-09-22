@@ -16,7 +16,14 @@ const logger = pino({ transport: { target: 'pino-pretty' } });
 app.use(pinoHttp({ logger }));
 app.use(helmet());
 app.use(cors({
-  origin: ['https://content-creators.masaischool.com', 'https://content-api.masaischool.com', 'http://localhost:5173', 'http://localhost:3000'],
+  origin: [
+    'https://content-creators.masaischool.com', 
+    'https://content-api.masaischool.com', 
+    'http://localhost:5173',  // Vite dev server
+    'http://localhost:3000',  // Alternative dev server
+    'http://localhost:5174',  // Alternative Vite port
+    'http://127.0.0.1:5173',  // Alternative localhost format
+  ],
   credentials: true
 }));
 app.use(express.json());
