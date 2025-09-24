@@ -78,8 +78,7 @@ validateRouter.post('/', requireAuth, async (req, res) => {
     return issues;
   };
   const documentationIssues = computeIssues(content);
-  
-  const validationResult = {
+  res.json({
     criteria: {
       relevance: { score: consensus.relevance, confidence: confidence.relevance, feedback: '', suggestions: [], issues: [] },
       continuity: { score: consensus.continuity, confidence: confidence.continuity, feedback: '', suggestions: [], issues: [] },
@@ -94,35 +93,7 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       prerequisiteTopics: assignmentContext.prerequisiteTopics,
       hasGuidelines: !!assignmentContext.guidelines
     } : null,
-  };
-
-  // Store validation results in database if contentId is provided
-  if (contentId) {
-    try {
-      // Store results for each successful provider
-      for (const success of successes) {
-        await prisma.validationResult.create({
-          data: {
-            contentId: contentId,
-            llmProvider: success.provider === 'gemini' ? 'ANTHROPIC' : success.provider.toUpperCase() as 'OPENAI' | 'LOCAL',
-            modelVersion: 'latest',
-            criteria: {
-              relevance: { score: success.scores.relevance, confidence: confidence.relevance },
-              continuity: { score: success.scores.continuity, confidence: confidence.continuity },
-              documentation: { score: success.scores.documentation, confidence: confidence.documentation },
-            },
-            overallScore: Math.round((success.scores.relevance + success.scores.continuity + success.scores.documentation) / 3) / 100,
-            processingTimeMs: processingTime,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Error storing validation results:', error);
-      // Continue even if storage fails
-    }
-  }
-
-  res.json(validationResult);
+  });
 });
 
 // Validate content specifically for an assignment

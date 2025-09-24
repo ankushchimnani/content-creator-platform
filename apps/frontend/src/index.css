@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Reset margins and padding to ensure full-screen layout */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom styles for details toggle */
+.details-toggle summary::-webkit-details-marker {
+  display: none;
+}
+
+.details-toggle[open] .arrow-down {
+  transform: rotate(180deg);
+}
+
 :root {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.5;

@@ -59,6 +59,67 @@ adminRouter.get('/admins', requireAuth, requireRole(['ADMIN']), async (req, res)
   }
 });
 
+// Get assigned creators for the current admin
+adminRouter.get('/assigned-creators', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    console.log('Request user:', req.user);
+    console.log('Request headers:', req.headers);
+    
+    const adminId = req.user!.id;
+    console.log('Fetching assigned creators for admin:', adminId);
+    
+    // First, let's test a simple query without _count
+    const simpleCreators = await prisma.user.findMany({
+      where: { 
+        role: 'CREATOR',
+        assignedAdminId: adminId
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true
+      }
+    });
+    
+    console.log('Simple query result:', simpleCreators);
+    
+    // Now try the full query
+    const creators = await prisma.user.findMany({
+      where: { 
+        role: 'CREATOR',
+        assignedAdminId: adminId
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        lastLogin: true,
+        _count: {
+          select: {
+            contents: true,
+            assignedTasks: true
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    console.log('Found creators:', creators.length);
+    res.json({ creators });
+  } catch (error) {
+    console.error('Error fetching assigned creators:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      adminId: req.user?.id
+    });
+    res.status(500).json({ error: 'Failed to fetch assigned creators' });
+  }
+});
+
 // Assign creator to admin
 const assignCreatorSchema = z.object({
   creatorId: z.string(),

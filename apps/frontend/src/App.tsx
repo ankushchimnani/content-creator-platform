@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { CreatorDashboard } from './components/CreatorDashboard'
 import { AdminDashboard } from './components/AdminDashboard'
+import { CreatorDashboard } from './components/CreatorDashboard'
+import { ContentCreation } from './components/ContentCreation'
+import { Settings } from './components/Settings'
 import { apiCall } from './utils/api'
 
 type LoginResponse = { 
@@ -33,6 +35,8 @@ function App() {
     return savedUser ? JSON.parse(savedUser) : null
   })
   const [isValidatingToken, setIsValidatingToken] = useState(false)
+  const [currentView, setCurrentView] = useState<'dashboard' | 'create-content' | 'settings'>('dashboard')
+  const [taskData, setTaskData] = useState<any>(null)
   const isAuthed = useMemo(() => !!token && !!user, [token, user])
 
   useEffect(() => {
@@ -42,6 +46,43 @@ function App() {
     if (token && user) {
       setIsValidatingToken(true)
       validateStoredToken().finally(() => setIsValidatingToken(false))
+    }
+
+    // Handle URL routing
+    const handleRouteChange = () => {
+      const hash = window.location.hash
+      if (hash.includes('#/create-content')) {
+        const urlParams = new URLSearchParams(hash.split('?')[1])
+        const taskParam = urlParams.get('task')
+        if (taskParam) {
+          try {
+            const decodedTaskData = JSON.parse(decodeURIComponent(taskParam))
+            setTaskData(decodedTaskData)
+            setCurrentView('create-content')
+          } catch (error) {
+            console.error('Failed to parse task data:', error)
+            setCurrentView('dashboard')
+          }
+        } else {
+          setCurrentView('create-content')
+        }
+      } else if (hash.includes('#/settings')) {
+        setCurrentView('settings')
+        setTaskData(null)
+      } else {
+        setCurrentView('dashboard')
+        setTaskData(null)
+      }
+    }
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleRouteChange)
+    
+    // Check initial route
+    handleRouteChange()
+
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange)
     }
   }, [])
 
@@ -99,8 +140,6 @@ function App() {
     setUser(null)
   }
 
-  // Validation logic moved to individual dashboard components
-
   // Show loading spinner while validating token
   if (isValidatingToken) {
     return (
@@ -118,7 +157,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen w-full bg-gray-50 m-0 p-0">
       {!isAuthed ? (
         <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-md">
@@ -158,18 +197,52 @@ function App() {
                 >
                   Login
                 </button>
-                
-                {/* Removed quick role buttons for deployment */}
               </div>
             </div>
           </div>
         </div>
       ) : (
-        // Role-based Dashboard Routing
-        user?.role === 'ADMIN' ? (
-          <AdminDashboard user={user} token={token!} onLogout={logout} />
+        // Route between different views
+        currentView === 'create-content' ? (
+          <ContentCreation 
+            user={user!} 
+            token={token!} 
+            onBack={() => {
+              setCurrentView('dashboard')
+              setTaskData(null)
+              window.location.hash = '#'
+            }}
+            taskData={taskData}
+          />
+        ) : currentView === 'settings' ? (
+          <Settings 
+            user={user!} 
+            token={token!} 
+            onBack={() => {
+              setCurrentView('dashboard')
+              window.location.hash = '#'
+            }}
+          />
         ) : (
-          <CreatorDashboard user={user!} token={token!} onLogout={logout} />
+          // Role-based dashboard routing
+          user!.role === 'ADMIN' ? (
+            <AdminDashboard 
+              user={user!} 
+              token={token!} 
+              onLogout={logout}
+            />
+          ) : (
+            <CreatorDashboard 
+              user={user!} 
+              token={token!} 
+              onLogout={logout}
+              onNavigateToContentCreation={(taskData) => {
+                setTaskData(taskData)
+                setCurrentView('create-content')
+                window.location.hash = `#/create-content${taskData ? `?task=${encodeURIComponent(JSON.stringify(taskData))}` : ''}`
+              }}
+            />
+          )
         )
       )}
     </div>

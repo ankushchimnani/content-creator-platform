@@ -4,13 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#4F46E5",
+        primary: "#6366F1",
         "background-light": "#F9FAFB",
         "background-dark": "#111827",
         "surface-light": "#FFFFFF",
         "surface-dark": "#1F2937",
+        "card-light": "#FFFFFF",
+        "card-dark": "#1F2937",
         "text-light": "#1F2937",
         "text-dark": "#F9FAFB",
+        "text-secondary-light": "#6B7280",
+        "text-secondary-dark": "#9CA3AF",
         "subtle-light": "#6B7280",
         "subtle-dark": "#9CA3AF",
         "border-light": "#E5E7EB",
