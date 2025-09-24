@@ -166,7 +166,13 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
         alert('Content submitted for review!');
       } else {
         const error = await res.json();
-        alert(`Failed to submit: ${error.error}`);
+        if (error.requiresValidation) {
+          alert('Content must be validated before submission. Please run validation first.');
+        } else if (error.requiresImprovement) {
+          alert(`Content validation score (${Math.round(error.validationScore * 100)}%) is below minimum threshold (70%). Please improve content quality before submission.`);
+        } else {
+          alert(`Failed to submit: ${error.error}`);
+        }
       }
     } catch (error) {
       console.error('Failed to submit:', error);

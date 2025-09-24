@@ -31,6 +31,15 @@ type Content = {
     name: string;
     email: string;
   };
+  validationResults?: Array<{
+    id: string;
+    llmProvider: string;
+    modelVersion: string;
+    criteria: any;
+    overallScore: number;
+    processingTimeMs: number;
+    createdAt: string;
+  }>;
 };
 
 type AdminStats = {
@@ -361,9 +370,20 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                       by {content.author.name}
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(content.status)}`}>
-                        {content.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(content.status)}`}>
+                          {content.status}
+                        </span>
+                        {content.validationResults && content.validationResults.length > 0 && (
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            content.validationResults[0].overallScore >= 0.7 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            LLM: {Math.round(content.validationResults[0].overallScore * 100)}%
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-500">
                         {content.submittedAt && new Date(content.submittedAt).toLocaleDateString()}
                       </span>
@@ -405,6 +425,60 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h3 className="font-medium text-blue-900 mb-2">Content Brief</h3>
                       <p className="text-blue-800 text-sm">{selectedContent.brief}</p>
+                    </div>
+                  )}
+
+                  {/* LLM Validation Results */}
+                  {selectedContent.validationResults && selectedContent.validationResults.length > 0 && (
+                    <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <h3 className="font-medium text-green-900 mb-3">LLM Validation Results</h3>
+                      <div className="space-y-3">
+                        {selectedContent.validationResults.map((result) => (
+                          <div key={result.id} className="bg-white p-3 rounded border border-green-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-green-800">
+                                {result.llmProvider} (v{result.modelVersion})
+                              </span>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                result.overallScore >= 0.7 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                Overall: {Math.round(result.overallScore * 100)}%
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="text-center">
+                                <div className="font-medium text-gray-700">Relevance</div>
+                                <div className={`px-2 py-1 rounded ${
+                                  result.criteria.relevance.score >= 0.7 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {Math.round(result.criteria.relevance.score * 100)}%
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="font-medium text-gray-700">Continuity</div>
+                                <div className={`px-2 py-1 rounded ${
+                                  result.criteria.continuity.score >= 0.7 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {Math.round(result.criteria.continuity.score * 100)}%
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="font-medium text-gray-700">Documentation</div>
+                                <div className={`px-2 py-1 rounded ${
+                                  result.criteria.documentation.score >= 0.7 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {Math.round(result.criteria.documentation.score * 100)}%
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-2">
+                              Validated {new Date(result.createdAt).toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

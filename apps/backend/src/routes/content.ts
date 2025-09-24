@@ -155,7 +155,11 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
       include: { 
         author: { 
           include: { assignedAdmin: true } 
-        } 
+        },
+        validationResults: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
       }
     });
 
@@ -173,6 +177,25 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
 
     if (!content.author.assignedAdmin) {
       return res.status(400).json({ error: 'No admin assigned to review your content' });
+    }
+
+    // Check if content has been validated recently (within last 24 hours)
+    const hasRecentValidation = content.validationResults.length > 0;
+    if (!hasRecentValidation) {
+      return res.status(400).json({ 
+        error: 'Content must be validated before submission. Please run validation first.',
+        requiresValidation: true
+      });
+    }
+
+    // Check if validation score meets minimum threshold (e.g., 70%)
+    const latestValidation = content.validationResults[0];
+    if (latestValidation && latestValidation.overallScore < 0.7) {
+      return res.status(400).json({ 
+        error: `Content validation score (${Math.round(latestValidation.overallScore * 100)}%) is below minimum threshold (70%). Please improve content quality before submission.`,
+        validationScore: latestValidation.overallScore,
+        requiresImprovement: true
+      });
     }
 
     // Update content status and assign reviewer
