@@ -10,6 +10,20 @@ type User = {
   role: string;
 };
 
+type ValidationResult = {
+  id: string;
+  llmProvider: string;
+  modelVersion: string;
+  criteria: {
+    relevance: { score: number; feedback: string; suggestions: string[] };
+    continuity: { score: number; feedback: string; suggestions: string[] };
+    documentation: { score: number; feedback: string; suggestions: string[] };
+  };
+  overallScore: number;
+  processingTimeMs: number;
+  createdAt: string;
+};
+
 type Content = {
   id: string;
   title: string;
@@ -27,6 +41,7 @@ type Content = {
   reviewFeedback?: string;
   createdAt: string;
   updatedAt: string;
+  validationResults?: ValidationResult[];
   author: {
     id: string;
     name: string;
@@ -545,6 +560,76 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <div className="prose prose-sm max-w-none mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50 max-h-96 overflow-y-auto">
                     <div dangerouslySetInnerHTML={{ __html: selectedContent.content.replace(/\n/g, '<br>') }} />
                   </div>
+
+                  {/* LLM Validation Results */}
+                  {selectedContent.validationResults && selectedContent.validationResults.length > 0 && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h3 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        AI Validation Results
+                      </h3>
+                      {selectedContent.validationResults.map((result, index) => (
+                        <div key={index} className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-800">
+                              Overall Score: {result.overallScore.toFixed(1)}/10
+                            </span>
+                            <span className="text-xs text-blue-600">
+                              {result.llmProvider} • {result.modelVersion}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="p-3 bg-white rounded border border-blue-100">
+                              <div className="text-sm font-medium text-gray-700 mb-1">Relevance</div>
+                              <div className="text-lg font-semibold text-blue-600">
+                                {result.criteria.relevance.score.toFixed(1)}/10
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {result.criteria.relevance.feedback}
+                              </div>
+                            </div>
+                            
+                            <div className="p-3 bg-white rounded border border-blue-100">
+                              <div className="text-sm font-medium text-gray-700 mb-1">Continuity</div>
+                              <div className="text-lg font-semibold text-blue-600">
+                                {result.criteria.continuity.score.toFixed(1)}/10
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {result.criteria.continuity.feedback}
+                              </div>
+                            </div>
+                            
+                            <div className="p-3 bg-white rounded border border-blue-100">
+                              <div className="text-sm font-medium text-gray-700 mb-1">Documentation</div>
+                              <div className="text-lg font-semibold text-blue-600">
+                                {result.criteria.documentation.score.toFixed(1)}/10
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {result.criteria.documentation.feedback}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {result.criteria.relevance.suggestions.length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-sm font-medium text-blue-800 mb-2">AI Suggestions:</div>
+                              <ul className="text-sm text-blue-700 space-y-1">
+                                {result.criteria.relevance.suggestions.map((suggestion, i) => (
+                                  <li key={i} className="flex items-start gap-2">
+                                    <span className="text-blue-500 mt-1">•</span>
+                                    <span>{suggestion}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Review Form */}
                   <div className="border-t border-gray-200 pt-6">

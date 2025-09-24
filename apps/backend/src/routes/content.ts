@@ -61,6 +61,10 @@ contentRouter.get('/', requireAuth, async (req, res) => {
           },
           reviewer: {
             select: { id: true, name: true, email: true }
+          },
+          validationResults: {
+            orderBy: { createdAt: 'desc' },
+            take: 1 // Get the most recent validation result
           }
         },
         orderBy: { updatedAt: 'desc' }
@@ -141,7 +145,7 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
 // Submit content for review
 contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req, res) => {
   try {
-    const { contentId } = req.body;
+    const { contentId, validationData } = req.body;
     
     if (!contentId || typeof contentId !== 'string') {
       return res.status(400).json({ error: 'Valid contentId is required' });
@@ -204,6 +208,26 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
       }
     });
 
+    // Store validation results if provided
+    if (validationData) {
+      try {
+        await prisma.validationResult.create({
+          data: {
+            contentId: contentId,
+            llmProvider: 'OPENAI', // Default provider
+            modelVersion: 'gpt-4',
+            criteria: validationData.criteria,
+            overallScore: validationData.overallScore,
+            processingTimeMs: validationData.processingTime || 0
+          }
+        });
+        console.log('Validation results stored for content:', contentId);
+      } catch (validationError) {
+        console.error('Failed to store validation results:', validationError);
+        // Don't fail the submission if validation storage fails
+      }
+    }
+
     // Log the action
     await prisma.auditLog.create({
       data: {
@@ -212,7 +236,8 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
         metadata: { 
           contentId, 
           reviewerId: content.author.assignedAdminId,
-          title: content.title 
+          title: content.title,
+          hasValidationData: !!validationData
         }
       }
     });

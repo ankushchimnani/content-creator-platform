@@ -204,6 +204,53 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
     setIsSubmitting(true);
     try {
+      // First, run validation before submitting
+      console.log('Running validation before submission...');
+      setIsValidating(true);
+      
+      const validationRes = await apiCall('/api/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: content,
+          title: title,
+          brief: brief,
+          contentType: contentType,
+          assignmentContext: taskData ? {
+            topic: taskData.topic,
+            prerequisiteTopics: taskData.prerequisiteTopics,
+            hasGuidelines: !!taskData.guidelines
+          } : undefined
+        })
+      });
+
+      if (!validationRes.ok) {
+        const error = await validationRes.json();
+        alert(`Validation failed: ${error.error || 'Unknown error'}`);
+        setIsValidating(false);
+        return;
+      }
+
+      const validationData = await validationRes.json();
+      setValidationResult(validationData);
+      setIsValidating(false);
+
+      // Show validation results to user before submission
+      const shouldProceed = confirm(
+        `Validation completed with score: ${validationData.overallScore.toFixed(1)}/10\n\n` +
+        `Do you want to submit this content for review?\n\n` +
+        `Note: The admin will see these validation results during review.`
+      );
+
+      if (!shouldProceed) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Now submit for review with validation data
       const res = await apiCall('/api/content/submit', {
         method: 'POST',
         headers: {
@@ -211,13 +258,14 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          contentId: contentId
+          contentId: contentId,
+          validationData: validationData
         })
       });
 
       if (res.ok) {
         await res.json();
-        alert('Content submitted for review successfully!');
+        alert('Content submitted for review successfully! The admin will see the validation results.');
         onBack(); // Go back to dashboard after successful submission
       } else {
         const error = await res.json();
@@ -228,6 +276,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
       alert('Failed to submit content');
     } finally {
       setIsSubmitting(false);
+      setIsValidating(false);
     }
   };
 
