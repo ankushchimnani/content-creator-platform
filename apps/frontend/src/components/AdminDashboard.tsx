@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiCall } from '../utils/api';
 import { AssignmentManager } from './AssignmentManager';
+import { Settings } from './Settings';
 
 type User = {
   id: string;
@@ -55,12 +56,58 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | ''>('');
   const [reviewFeedback, setReviewFeedback] = useState('');
-  const [activeTab, setActiveTab] = useState<'review' | 'assignments'>('review');
+  const [activeTab, setActiveTab] = useState<'review' | 'assignments' | 'assigned-creators' | 'settings'>('review');
   const [openCreateAssignment, setOpenCreateAssignment] = useState(false);
+  const [tasksFilter, setTasksFilter] = useState<'all' | 'assigned' | 'review' | 'rejected' | 'approved'>('all');
+  const [assignedCreators, setAssignedCreators] = useState<User[]>([]);
 
   useEffect(() => {
     fetchReviewQueue();
     fetchStats();
+    
+    // Set up polling for real-time updates
+    const interval = setInterval(() => {
+      fetchReviewQueue();
+      fetchStats();
+    }, 30000); // Poll every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'assigned-creators') {
+      fetchAssignedCreators();
+    }
+  }, [activeTab]);
+
+  // Handle URL hash changes for proper browser navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.includes('#/assigned-creators')) {
+        setActiveTab('assigned-creators');
+        setTasksFilter('all');
+      } else if (hash.includes('#/tasks')) {
+        setActiveTab('assignments');
+        const urlParams = new URLSearchParams(hash.split('?')[1]);
+        const filter = urlParams.get('filter');
+        if (filter && ['all', 'assigned', 'review', 'rejected', 'approved'].includes(filter)) {
+          setTasksFilter(filter as any);
+        } else {
+          setTasksFilter('all');
+        }
+      } else {
+        setActiveTab('review');
+        setTasksFilter('all');
+      }
+    };
+
+    // Set initial state from URL
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   const fetchReviewQueue = async () => {
@@ -91,6 +138,20 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
     }
   };
 
+  const fetchAssignedCreators = async () => {
+    try {
+      const res = await apiCall('/api/admin/assigned-creators', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAssignedCreators(data.creators || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch assigned creators:', error);
+    }
+  };
+
   const submitReview = async () => {
     if (!selectedContent || !reviewAction) return;
 
@@ -115,8 +176,9 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
         setSelectedContent(null);
         setReviewAction('');
         setReviewFeedback('');
-        // Refresh stats
+        // Refresh stats and trigger real-time updates
         fetchStats();
+        fetchReviewQueue(); // Refresh the queue to get latest status
         alert(`Content ${reviewAction}d successfully!`);
       } else {
         const error = await res.json();
@@ -141,118 +203,159 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background-light font-sans text-text-light">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="text-sm sm:text-lg font-semibold text-gray-900">
-              <span className="hidden sm:inline">Content Validator - Admin</span>
-              <span className="sm:hidden">CV Admin</span>
-            </div>
+      <header className="bg-surface-light border-b border-border-light px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-600 p-2 rounded-lg">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          
-          {/* Mobile Navigation */}
-          <nav className="flex gap-2 text-xs sm:hidden">
+        </div>
+        
+        <div className="flex items-center justify-between flex-1 ml-6">
+          {/* Navigation */}
+          <nav className="flex items-center gap-2">
             <button
-              onClick={() => setActiveTab('review')}
-              className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'review' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Queue
-            </button>
-            <button
-              onClick={() => setActiveTab('assignments')}
-              className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'assignments' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Tasks
-            </button>
-            <button
-              onClick={() => { setActiveTab('assignments'); setOpenCreateAssignment(true); }}
-              className="px-3 py-2 rounded-lg font-medium bg-purple-600 text-white hover:bg-purple-700"
-            >
-              + Create
-            </button>
-          </nav>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden gap-8 text-sm text-gray-600 md:flex">
-            <button
-              onClick={() => setActiveTab('review')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'review' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
+              onClick={() => {
+                setActiveTab('review');
+                setTasksFilter('all');
+                window.location.hash = '#';
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'review'
+                  ? 'text-subtle-light bg-gray-100'
+                  : 'text-subtle-light hover:bg-gray-100'
               }`}
             >
               Review Queue
             </button>
             <button
-              onClick={() => setActiveTab('assignments')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'assignments' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
+              onClick={() => {
+                setActiveTab('assignments');
+                setTasksFilter('all');
+                window.location.hash = '#/tasks';
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'assignments'
+                  ? 'text-subtle-light bg-gray-100'
+                  : 'text-subtle-light hover:bg-gray-100'
               }`}
             >
               Tasks
             </button>
-            <button
-              onClick={() => { setActiveTab('assignments'); setOpenCreateAssignment(true); }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-            >
-              + Create Task
-            </button>
           </nav>
-          
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden sm:block text-sm text-gray-600">
-              Admin: <span className="font-medium">{user.name}</span>
+
+          {/* User Info */}
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-sm font-medium text-text-light">Welcome, {user.name}</div>
+              <div className="text-xs text-gray-500">Admin</div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <button 
-                onClick={onLogout}
-                className="px-3 py-2 text-xs sm:text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 rounded-lg font-medium transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              title="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            <button 
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 text-text-light hover:bg-gray-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-4 sm:py-8">
+      <main className="flex-1 p-6">
         {activeTab === 'assignments' ? (
           <AssignmentManager
             user={user}
             token={token}
             triggerCreate={openCreateAssignment}
             onCreateConsumed={() => setOpenCreateAssignment(false)}
-            onSwitchToReview={() => setActiveTab('review')}
+            onSwitchToReview={(contentId) => {
+              setActiveTab('review');
+              if (contentId) {
+                // Find the content in the review queue and select it
+                const content = reviewQueue.find(c => c.id === contentId);
+                if (content) {
+                  setSelectedContent(content);
+                }
+              }
+            }}
+            filter={tasksFilter}
+            onFilterChange={setTasksFilter}
+          />
+        ) : activeTab === 'assigned-creators' ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Assigned Creators</h2>
+              <p className="text-sm text-gray-500 mt-1">{assignedCreators.length} creators assigned to you</p>
+            </div>
+            
+            <div className="p-6">
+              {assignedCreators.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Creators Assigned</h3>
+                  <p className="text-gray-500">You don't have any creators assigned to you yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {assignedCreators.map((creator) => (
+                    <div key={creator.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium text-blue-600">
+                            {creator.name.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{creator.name}</h3>
+                          <p className="text-sm text-gray-600">{creator.email}</p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <p>Role: {creator.role}</p>
+                        <p>ID: {creator.id}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'settings' ? (
+          <Settings 
+            user={user} 
+            token={token} 
+            onBack={() => setActiveTab('review')} 
           />
         ) : (
           <>
             {/* Stats Cards */}
             {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
+            <button 
+              onClick={() => {
+                setActiveTab('assigned-creators');
+                fetchAssignedCreators();
+                window.location.hash = '#/assigned-creators';
+              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer w-full text-left"
+            >
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -266,9 +369,16 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">{stats.assignedCreators}</p>
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
+            <button 
+              onClick={() => {
+                setActiveTab('assignments');
+                setTasksFilter('review');
+                window.location.hash = '#/tasks?filter=review';
+              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer w-full text-left"
+            >
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -282,9 +392,16 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">{stats.pendingReviews}</p>
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
+            <button 
+              onClick={() => {
+                setActiveTab('assignments');
+                setTasksFilter('approved');
+                window.location.hash = '#/tasks?filter=approved';
+              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer w-full text-left"
+            >
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
@@ -298,9 +415,16 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">{stats.approvedThisMonth}</p>
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
+            <button 
+              onClick={() => {
+                setActiveTab('assignments');
+                setTasksFilter('rejected');
+                window.location.hash = '#/tasks?filter=rejected';
+              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer w-full text-left"
+            >
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-red-100 rounded-lg flex items-center justify-center">
@@ -314,9 +438,16 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">{stats.rejectedThisMonth}</p>
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
+            <button 
+              onClick={() => {
+                setActiveTab('assignments');
+                setTasksFilter('approved');
+                window.location.hash = '#/tasks?filter=approved';
+              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer w-full text-left"
+            >
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -330,7 +461,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">{stats.totalReviewed}</p>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         )}
 

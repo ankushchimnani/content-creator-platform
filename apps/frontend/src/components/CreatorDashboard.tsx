@@ -3,6 +3,7 @@ import { apiCall } from '../utils/api';
 import { EditorSplit } from './EditorSplit';
 import { ResultsPanel } from './ResultsPanel';
 import { AssignmentTasks } from './AssignmentTasks';
+import { Settings } from './Settings';
 
 type User = {
   id: string;
@@ -66,9 +67,10 @@ type Props = {
   user: User;
   token: string;
   onLogout: () => void;
+  onNavigateToContentCreation?: (taskData?: any) => void;
 };
 
-export function CreatorDashboard({ user, token, onLogout }: Props) {
+export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCreation }: Props) {
   const [contents, setContents] = useState<Content[]>([]);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -77,7 +79,7 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingContent, setEditingContent] = useState<Content | null>(null);
-  const [activeTab, setActiveTab] = useState<'content' | 'assignments'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'settings'>('content');
   const [contentTypeFilter, setContentTypeFilter] = useState<'ALL' | 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('ALL');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -93,6 +95,13 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
 
   useEffect(() => {
     fetchContents();
+    
+    // Set up polling for real-time updates
+    const interval = setInterval(() => {
+      fetchContents();
+    }, 30000); // Poll every 30 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchContents = async () => {
@@ -267,16 +276,24 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
   };
 
   const handleCreateContentFromAssignment = (assignment: any) => {
-    setActiveTab('content');
-    setIsCreating(true);
-    setSelectedContent(null);
-    // Reset then prefill
-    resetForm();
-    setTitle(`${assignment.contentType.replace('_', ' ')}: ${assignment.topic}`);
-    setBrief(assignment.guidelines || '');
-    setContentType(assignment.contentType);
-    setDifficulty(assignment.difficulty || '');
-    setCreatingFromAssignment({ id: assignment.id, topic: assignment.topic });
+    if (onNavigateToContentCreation) {
+      const taskData = {
+        taskId: assignment.id,
+        topic: assignment.topic,
+        contentType: assignment.contentType,
+        guidelines: assignment.guidelines,
+        prerequisiteTopics: assignment.prerequisiteTopics,
+        // Include existing content data for revision
+        existingContent: assignment.content ? {
+          id: assignment.content.id,
+          title: assignment.content.title,
+          content: assignment.content.content || '',
+          brief: assignment.content.brief || '',
+          reviewFeedback: assignment.content.reviewFeedback || ''
+        } : null
+      };
+      onNavigateToContentCreation(taskData);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -325,14 +342,21 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
             >
               Tasks
             </button>
-            <button className="bg-purple-100 text-purple-600 px-4 py-2 rounded-md text-sm font-medium">
-              Settings
-            </button>
           </nav>
 
           {/* User Info */}
           <div className="flex items-center gap-4">
             <div className="text-right"><p className="text-sm font-medium">Welcome, {user.name}</p></div>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              title="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <button 
               onClick={onLogout}
               className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 text-text-light hover:bg-gray-300 transition-colors"
@@ -355,6 +379,12 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
               onCreateContent={handleCreateContentFromAssignment}
             />
           </div>
+        ) : activeTab === 'settings' ? (
+          <Settings 
+            user={user} 
+            token={token} 
+            onBack={() => setActiveTab('content')} 
+          />
         ) : (
           <>
             <div className="flex gap-6 h-full">
@@ -714,6 +744,32 @@ export function CreatorDashboard({ user, token, onLogout }: Props) {
                           </div>
                           {selectedContent.reviewedAt && (
                             <p className="text-xs text-red-600 mt-2">
+                              Reviewed on {new Date(selectedContent.reviewedAt).toLocaleDateString()} at {new Date(selectedContent.reviewedAt).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Approval Feedback Section */}
+                  {selectedContent.status === 'APPROVED' && selectedContent.reviewFeedback && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <svg className="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-medium text-green-800 mb-2">
+                            Admin Feedback - Content Approved
+                          </h4>
+                          <div className="text-sm text-green-700 bg-white p-3 rounded border border-green-200 whitespace-pre-wrap">
+                            {selectedContent.reviewFeedback}
+                          </div>
+                          {selectedContent.reviewedAt && (
+                            <p className="text-xs text-green-600 mt-2">
                               Reviewed on {new Date(selectedContent.reviewedAt).toLocaleDateString()} at {new Date(selectedContent.reviewedAt).toLocaleTimeString()}
                             </p>
                           )}

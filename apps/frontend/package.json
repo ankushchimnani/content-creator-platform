@@ -10,14 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@codemirror/basic-setup": "^0.20.0",
-    "@codemirror/lang-markdown": "^6.3.4",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.2",
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/typography": "^0.5.16",
     "classnames": "^2.5.1",
-    "codemirror": "^6.0.2",
     "marked": "^16.3.0",
     "monaco-editor": "^0.53.0",
     "react": "^19.1.1",

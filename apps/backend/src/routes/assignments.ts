@@ -33,6 +33,7 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
   try {
     const adminId = req.user!.id;
     
+    // Get assignments created by this admin
     const assignments = await prisma.contentAssignment.findMany({
       where: { assignedById: adminId },
       include: {
@@ -45,14 +46,83 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
             title: true, 
             status: true, 
             createdAt: true,
-            updatedAt: true 
+            updatedAt: true,
+            submittedAt: true,
+            reviewedAt: true,
+            approvedAt: true,
+            rejectedAt: true
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ assignments });
+    // Get all content created by creators assigned to this admin (including unlinked content)
+    const assignedCreators = await prisma.user.findMany({
+      where: { 
+        role: 'CREATOR',
+        assignedAdminId: adminId
+      },
+      select: { id: true }
+    });
+
+    const creatorIds = assignedCreators.map(c => c.id);
+    
+    const allContent = await prisma.content.findMany({
+      where: {
+        authorId: { in: creatorIds }
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        submittedAt: true,
+        reviewedAt: true,
+        approvedAt: true,
+        rejectedAt: true,
+        author: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Create virtual assignments for unlinked content
+    const unlinkedContent = allContent.filter(content => 
+      !assignments.some(assignment => assignment.contentId === content.id)
+    );
+
+    const virtualAssignments = unlinkedContent.map(content => ({
+      id: `virtual-${content.id}`,
+      topic: content.title,
+      prerequisiteTopics: [],
+      guidelines: null,
+      contentType: 'LECTURE_NOTE' as const,
+      difficulty: null,
+      dueDate: null,
+      status: 'COMPLETED' as const,
+      createdAt: content.createdAt,
+      updatedAt: content.updatedAt,
+      assignedTo: content.author,
+      content: {
+        id: content.id,
+        title: content.title,
+        status: content.status,
+        createdAt: content.createdAt,
+        updatedAt: content.updatedAt,
+        submittedAt: content.submittedAt,
+        reviewedAt: content.reviewedAt,
+        approvedAt: content.approvedAt,
+        rejectedAt: content.rejectedAt
+      }
+    }));
+
+    // Combine real assignments with virtual assignments
+    const allAssignments = [...assignments, ...virtualAssignments];
+
+    res.json({ assignments: allAssignments });
   } catch (error) {
     console.error('Error fetching assignments:', error);
     res.status(500).json({ error: 'Failed to fetch assignments' });
@@ -76,7 +146,14 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
             title: true, 
             status: true, 
             createdAt: true,
-            updatedAt: true 
+            updatedAt: true,
+            submittedAt: true,
+            reviewedAt: true,
+            approvedAt: true,
+            rejectedAt: true,
+            reviewFeedback: true,
+            content: true,
+            brief: true
           }
         }
       },
