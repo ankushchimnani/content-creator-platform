@@ -54,7 +54,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
   const [content, setContent] = useState('');
   const [brief, setBrief] = useState('');
   const [contentType, setContentType] = useState('LECTURE_NOTE');
-  const [realTimePreview, setRealTimePreview] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,18 +139,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
       monacoEditorRef.current.setValue(content);
     }
   }, [content]);
-
-  // Real-time preview effect
-  useEffect(() => {
-    if (realTimePreview && content) {
-      // Trigger validation automatically when real-time preview is on
-      const timeoutId = setTimeout(() => {
-        validateContent();
-      }, 2000); // Debounce validation
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [content, realTimePreview]); // Note: validateContent is not in deps to avoid infinite loop
 
   const validateContent = async () => {
     if (!content.trim()) {
@@ -333,22 +320,77 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         // Link content to assignment if taskData exists and it's not a revision
         if (taskData?.taskId && !taskData?.existingContent) {
           try {
-            await apiCall(`/api/assignments/${taskData.taskId}/link-content`, {
+            // First run LLM validation for assignment content
+            console.log('Running LLM validation for assignment content...');
+            setIsValidating(true);
+            
+            const validationRes = await apiCall('/api/validate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                content: content,
+                title: title,
+                brief: brief,
+                contentType: contentType,
+                assignmentContext: {
+                  topic: taskData.topic,
+                  prerequisiteTopics: taskData.prerequisiteTopics,
+                  hasGuidelines: !!taskData.guidelines
+                }
+              })
+            });
+
+            if (!validationRes.ok) {
+              const error = await validationRes.json();
+              alert(`Validation failed: ${error.error || 'Unknown error'}`);
+              setIsValidating(false);
+              return;
+            }
+
+            const validationData = await validationRes.json();
+            setValidationResult(validationData);
+            setIsValidating(false);
+
+            // Show validation results to user
+            const shouldProceed = confirm(
+              `Assignment validation completed with score: ${validationData.overallScore.toFixed(1)}/10\n\n` +
+              `Do you want to complete this assignment?\n\n` +
+              `Note: The admin will see these validation results when reviewing your work.`
+            );
+
+            if (!shouldProceed) {
+              setIsCreating(false);
+              return;
+            }
+
+            // Now link content to assignment with validation data
+            const linkRes = await apiCall(`/api/assignments/${taskData.taskId}/link-content`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json', 
                 Authorization: `Bearer ${token}` 
               },
-              body: JSON.stringify({ contentId: data.content.id })
+              body: JSON.stringify({ 
+                contentId: data.content.id,
+                validationData: validationData // Include validation results
+              })
             });
             
-            // For assignments, content is automatically completed when linked
-            alert('Assignment completed successfully!');
-            onBack(); // Go back to dashboard immediately
-            return;
+            if (linkRes.ok) {
+              // For assignments, content is automatically completed when linked
+              alert('Assignment completed successfully! The admin will see the validation results.');
+              onBack(); // Go back to dashboard immediately
+              return;
+            } else {
+              const error = await linkRes.json();
+              alert(`Failed to link content to assignment: ${error.error}`);
+            }
           } catch (error) {
-            console.error('Failed to link content to assignment:', error);
-            alert('Content created but failed to link to assignment');
+            console.error('Failed to complete assignment:', error);
+            alert('Content created but failed to complete assignment');
           }
         }
         
@@ -635,15 +677,15 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   <div className="text-sm font-medium text-gray-700">Criteria Scores:</div>
                   <div className="grid grid-cols-1 gap-2">
                     <div className="flex justify-between text-sm">
-                      <span>Relevance:</span>
+                      <span>Adherence to Structure:</span>
                       <span className="font-medium">{validationResult.criteria.relevance.score}/100</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Continuity:</span>
+                      <span>Coverage of Topics:</span>
                       <span className="font-medium">{validationResult.criteria.continuity.score}/100</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Documentation:</span>
+                      <span>Ease of Understanding:</span>
                       <span className="font-medium">{validationResult.criteria.documentation.score}/100</span>
                     </div>
                   </div>
@@ -677,22 +719,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 <span className="material-icons text-base">check_circle</span>
                 {isValidating ? 'Validating...' : 'Validate Content'}
               </button>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">Real-time Preview</span>
-                <button
-                  onClick={() => setRealTimePreview(!realTimePreview)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    realTimePreview ? 'bg-indigo-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      realTimePreview ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
             </div>
           </div>
         </aside>

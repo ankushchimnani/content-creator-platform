@@ -33,6 +33,7 @@ html, body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-align: left;
 }
 
 /* Remove default link overrides to keep Tailwind color tokens accurate */
@@ -54,17 +55,6 @@ h1 {
 /* Remove global button overrides so Tailwind classes control color/size */
 button { cursor: pointer; }
 button:focus, button:focus-visible { outline: none; }
-
-/* Custom Toggle Switch Styles */
-.toggle-checkbox:checked {
-  @apply: right-0 border-blue-600;
-  right: 0;
-  border-color: #2563eb;
-}
-.toggle-checkbox:checked + .toggle-label {
-  @apply: bg-blue-600;
-  background-color: #2563eb;
-}
 
 /* Smooth transitions for interactive elements */
 button, input, textarea {

@@ -4,6 +4,7 @@ import { EditorSplit } from './EditorSplit';
 import { ResultsPanel } from './ResultsPanel';
 import { AssignmentTasks } from './AssignmentTasks';
 import { Settings } from './Settings';
+import { marked } from 'marked';
 
 type User = {
   id: string;
@@ -81,7 +82,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
   const [editingContent, setEditingContent] = useState<Content | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'settings'>('content');
   const [contentTypeFilter, setContentTypeFilter] = useState<'ALL' | 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('ALL');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   // Form state for new/edit content
   const [title, setTitle] = useState('');
@@ -262,6 +263,52 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
     setCategory('');
   };
 
+  const renderMarkdownPreview = (text: string) => {
+    // Preprocess text to fix common markdown mistakes
+    let processedText = text
+      // Fix links with spaces: [text] (url) -> [text](url)
+      .replace(/\[([^\]]+)\]\s+\(([^)]+)\)/g, '[$1]($2)')
+      // Fix URLs without protocol: www.example.com -> https://www.example.com
+      .replace(/\[([^\]]+)\]\((www\.[^)]+)\)/g, '[$1](https://$2)')
+      // Fix URLs without protocol: example.com -> https://example.com (but not if already has protocol)
+      .replace(/\[([^\]]+)\]\(([^h][^)]+)\)/g, (match, text, url) => {
+        if (!url.startsWith('http') && !url.startsWith('mailto:') && !url.startsWith('#')) {
+          return `[${text}](https://${url})`;
+        }
+        return match;
+      });
+    
+    // Configure marked for better security and rendering
+    marked.setOptions({
+      breaks: true, // Convert line breaks to <br>
+      gfm: true, // GitHub Flavored Markdown
+    });
+    
+    try {
+      const html = marked.parse(processedText) as string;
+      // Add target="_blank" to all links for better UX
+      let processedHtml = html.replace(/<a href="/g, '<a target="_blank" rel="noopener noreferrer" href="');
+      
+      // Reduce heading sizes and spacing
+      processedHtml = processedHtml
+        .replace(/<h1>/g, '<h2 class="text-sm font-semibold mb-1">')
+        .replace(/<h2>/g, '<h3 class="text-sm font-medium mb-1">')
+        .replace(/<h3>/g, '<h4 class="text-xs font-medium mb-1">')
+        .replace(/<\/h1>/g, '</h2>')
+        .replace(/<\/h2>/g, '</h3>')
+        .replace(/<\/h3>/g, '</h4>')
+        .replace(/<p>/g, '<p class="mb-1">')
+        .replace(/<ul>/g, '<ul class="mb-1 ml-4">')
+        .replace(/<ol>/g, '<ol class="mb-1 ml-4">')
+        .replace(/<li>/g, '<li class="mb-0.5">');
+      
+      return processedHtml;
+    } catch (error) {
+      console.error('Markdown parsing error:', error);
+      return text.replace(/\n/g, '<br>'); // Fallback to basic rendering
+    }
+  };
+
   const startCreating = () => {
     setIsCreating(true);
     setSelectedContent(null);
@@ -316,7 +363,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-text-light">Content Validator</h1>
+          <h2 className="text-xl font-bold text-text-light">Content Validator</h2>
         </div>
 
         <div className="flex items-center gap-6">
@@ -691,7 +738,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-6">
                     <div className="col-span-2">
-                      <h1 className="text-xl font-semibold text-text-light mb-2">{selectedContent.title}</h1>
+                      <h2 className="text-xl font-semibold text-text-light mb-2">{selectedContent.title}</h2>
                       <div className="flex items-center gap-3 text-sm text-subtle-light">
                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(selectedContent.status)}`}>{selectedContent.status}</span>
                         <span>{selectedContent.wordCount} words</span>
@@ -856,16 +903,16 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                     </div>
                   ) : (
                     // Read-only content summary
-                    <div className="prose max-w-none">
+                    <div className="space-y-2">
                       {selectedContent.brief && (
-                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-                          <h3 className="font-medium text-blue-900 mb-2">Brief</h3>
-                          <p className="text-sm text-blue-900">{selectedContent.brief}</p>
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                          <h3 className="text-sm font-medium text-blue-900 mb-1">Brief</h3>
+                          <p className="text-xs text-blue-900">{selectedContent.brief}</p>
                         </div>
                       )}
-                      <article className="prose">
-                        <pre className="whitespace-pre-wrap text-sm">{selectedContent.content}</pre>
-                      </article>
+                      <div className="text-sm text-left leading-relaxed p-3 bg-white border border-gray-200 rounded-lg" style={{textAlign: 'left'}}>
+                        <div dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(selectedContent.content) }} />
+                      </div>
                     </div>
                   )}
                 </div>

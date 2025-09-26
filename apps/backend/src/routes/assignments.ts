@@ -50,7 +50,14 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
             submittedAt: true,
             reviewedAt: true,
             approvedAt: true,
-            rejectedAt: true
+            rejectedAt: true,
+            reviewFeedback: true
+          },
+          include: {
+            validationResults: {
+              orderBy: { createdAt: 'desc' },
+              take: 1
+            }
           }
         }
       },
@@ -72,18 +79,13 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
       where: {
         authorId: { in: creatorIds }
       },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        submittedAt: true,
-        reviewedAt: true,
-        approvedAt: true,
-        rejectedAt: true,
+      include: {
         author: {
           select: { id: true, name: true, email: true }
+        },
+        validationResults: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -115,7 +117,9 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
         submittedAt: content.submittedAt,
         reviewedAt: content.reviewedAt,
         approvedAt: content.approvedAt,
-        rejectedAt: content.rejectedAt
+        rejectedAt: content.rejectedAt,
+        reviewFeedback: content.reviewFeedback,
+        validationResults: content.validationResults
       }
     }));
 
@@ -154,6 +158,12 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
             reviewFeedback: true,
             content: true,
             brief: true
+          },
+          include: {
+            validationResults: {
+              orderBy: { createdAt: 'desc' },
+              take: 1
+            }
           }
         }
       },
@@ -375,7 +385,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
 assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']), async (req: Request, res: Response) => {
   try {
     const assignmentId = req.params.id;
-    const { contentId } = req.body;
+    const { contentId, validationData } = req.body; // Added validationData
     const creatorId = req.user!.id;
 
     if (!contentId) {
@@ -440,6 +450,26 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
       }
     });
 
+    // Store validation results if provided
+    if (validationData) {
+      try {
+        await prisma.validationResult.create({
+          data: {
+            contentId: contentId,
+            llmProvider: 'OPENAI', // Default provider
+            modelVersion: 'gpt-4',
+            criteria: validationData.criteria,
+            overallScore: validationData.overallScore,
+            processingTimeMs: validationData.processingTime || 0
+          }
+        });
+        console.log('Validation results stored for assignment content:', contentId);
+      } catch (validationError) {
+        console.error('Failed to store validation results:', validationError);
+        // Don't fail the assignment completion if validation storage fails
+      }
+    }
+
     // Log the action
     await prisma.auditLog.create({
       data: {
@@ -449,7 +479,8 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
           assignmentId: assignmentId, 
           contentId: contentId,
           contentTitle: content.title,
-          topic: assignment.topic
+          topic: assignment.topic,
+          hasValidationData: !!validationData // Added this
         }
       }
     });

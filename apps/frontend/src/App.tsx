@@ -23,8 +23,8 @@ type LoginResponse = {
 // Removed ValidateResponse as it's not needed in main App anymore
 
 function App() {
-  const [email, setEmail] = useState('creator@masaischool.com')
-  const [password, setPassword] = useState('creator123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [token, setToken] = useState<string | null>(() => {
     // Initialize from localStorage
     return localStorage.getItem('cvp_token')

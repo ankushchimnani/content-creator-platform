@@ -204,9 +204,9 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
           <div className="text-sm font-medium text-gray-700 mb-3">Detailed Breakdown</div>
           <div className="space-y-6">
             {([
-              ['Relevance', criteria.relevance, 'How well the content aligns with the provided topics and requirements'],
-              ['Knowledge Continuity', criteria.continuity, 'Logical flow and progression of concepts in the content'],
-              ['Documentation Compliance', criteria.documentation, 'Adherence to formatting and documentation standards'],
+              ['Adherence to Structure', criteria.relevance, 'How well the content follows the required structure and format'],
+              ['Coverage of Topics', criteria.continuity, 'How thoroughly the content covers the required topics'],
+              ['Ease of Understanding', criteria.documentation, 'How clear and accessible the content is for learners'],
             ] as const).map(([label, item, description]) => (
               <div key={label} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
                 <div className="flex items-center justify-between text-sm text-gray-700 mb-2">
@@ -301,14 +301,6 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
               </>
             )}
           </button>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label className="text-sm text-gray-600">Real-time Preview</label>
-          <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-            <input type="checkbox" name="toggle" id="toggle" className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-            <label htmlFor="toggle" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-          </div>
         </div>
       </div>
     </div>
