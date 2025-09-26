@@ -168,8 +168,8 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Content Validation Platform</h1>
-                <p className="text-sm sm:text-base text-gray-600">Sign in to access your dashboard</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Margen</h2>
+                <p className="text-sm sm:text-base text-gray-600"></p>
               </div>
               
               <div className="space-y-4">
