@@ -10,3 +10,6 @@ dist
 .vscode
 .idea
 
+# Scripts directory - contains utility scripts and should not be committed
+scripts/
+
