@@ -50,13 +50,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
           Validate Content
         </button>
         
-        <div className="flex justify-between items-center border-t border-gray-200 pt-4">
-          <span className="text-sm font-medium">Real-time Preview</span>
-          <button className="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2">
-            <span className="sr-only">Use setting</span>
-            <span className="translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
-          </button>
-        </div>
+        
       </div>
     )
   }
@@ -244,7 +238,6 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
         </div>
 
         <div className="mb-6">
-          <div className="text-sm font-medium text-gray-700 mb-3">Actionable Suggestions</div>
           <div className="space-y-3">
             {/* Collect all suggestions from all criteria */}
             {(() => {
@@ -255,17 +248,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
                 ...(criteria.documentation.issues?.map((iss: any) => iss.message) || [])
               ].filter(Boolean).slice(0, 5);
 
-              if (allSuggestions.length === 0) {
-                return (
-                  <div className="text-center py-6">
-                    <svg className="w-12 h-12 text-green-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-green-600 font-medium mb-1">Great work!</p>
-                    <p className="text-gray-500 text-sm">Your content meets the validation criteria well.</p>
-                  </div>
-                );
-              }
+              
 
               return allSuggestions.map((suggestion, i) => (
                 <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50">

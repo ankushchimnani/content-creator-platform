@@ -27,9 +27,9 @@ type TaskData = {
 
 type ValidationResult = {
   criteria: {
-    relevance: { score: number; confidence: number; feedback: string; suggestions: string[]; issues: any[] };
-    continuity: { score: number; confidence: number; feedback: string; suggestions: string[]; issues: any[] };
-    documentation: { score: number; confidence: number; feedback: string; suggestions: string[]; issues: any[] };
+    relevance: { score: number; confidence: number; feedback: string; issues: any[] };
+    continuity: { score: number; confidence: number; feedback: string; issues: any[] };
+    documentation: { score: number; confidence: number; feedback: string; issues: any[] };
   };
   providers: string[];
   overallScore: number;
@@ -60,6 +60,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [contentId, setContentId] = useState<string | null>(null);
   const [contentCreated, setContentCreated] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Monaco Editor refs
   const editorRef = useRef<HTMLDivElement>(null);
@@ -139,6 +140,16 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
       monacoEditorRef.current.setValue(content);
     }
   }, [content]);
+
+  // Handle editor resize when expansion state changes
+  useEffect(() => {
+    if (monacoEditorRef.current) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        monacoEditorRef.current?.layout();
+      }, 100);
+    }
+  }, [isExpanded]);
 
   const validateContent = async () => {
     if (!content.trim()) {
@@ -382,7 +393,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
             if (linkRes.ok) {
               // For assignments, content is automatically completed when linked
               alert('Assignment completed successfully! The admin will see the validation results.');
-              onBack(); // Go back to dashboard immediately
+              setContentCreated(true); // Enable Submit for Review button
               return;
             } else {
               const error = await linkRes.json();
@@ -452,7 +463,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen bg-gray-50 ${isExpanded ? 'fixed inset-0 z-50' : ''}`}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
@@ -462,10 +473,19 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
           >
             <span className="material-icons">arrow_back</span>
           </button>
-          <h1 className="text-xl font-bold text-gray-900">Content Validator</h1>
+          <h2 className="text-xl font-bold text-gray-900">Content Validator</h2>
         </div>
         
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            title={isExpanded ? "Collapse Editor" : "Expand Editor"}
+          >
+            <span className="material-icons">
+              {isExpanded ? 'fullscreen_exit' : 'fullscreen'}
+            </span>
+          </button>
           <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
             <span className="text-sm font-medium text-orange-600">
               {user.name.split(' ').map(n => n[0]).join('')}
@@ -562,7 +582,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   </div>
                   <div className="text-sm text-green-800">
                     {taskData ? 
-                      'Your assignment content has been created and linked to the task.' :
+                      'Your assignment content has been created and linked to the task. You can now submit it for review.' :
                       'Your content has been created and is ready for submission. Click "Submit for Review" to send it to your assigned admin for review.'
                     }
                   </div>
@@ -571,7 +591,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
               {/* Editor/Preview Split */}
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="flex h-[500px]">
+                <div className={`flex ${isExpanded ? 'h-[calc(100vh-200px)]' : 'h-[500px]'}`}>
                   {/* Monaco Editor */}
                   <div className="flex-1 flex flex-col">
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
@@ -629,7 +649,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   >
                     {isCreating ? 'Creating...' : (taskData?.existingContent ? 'Update Content' : (taskData ? 'Complete Assignment' : 'Create Content'))}
                   </button>
-                ) : !taskData ? (
+                ) : (!taskData || contentCreated) ? (
                   <button
                     onClick={submitForReview}
                     disabled={isSubmitting}
@@ -643,8 +663,23 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
           </div>
         </div>
 
+        {/* Floating Validation Button for Expanded Mode */}
+        {isExpanded && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={validateContent}
+              disabled={!content.trim() || isValidating}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors shadow-lg"
+            >
+              <span className="material-icons text-base">check_circle</span>
+              {isValidating ? 'Validating...' : 'Validate Content'}
+            </button>
+          </div>
+        )}
+
         {/* Right Panel - Validation Dashboard */}
-        <aside className="w-80 bg-white border-l border-gray-200 flex flex-col">
+        {!isExpanded && (
+          <aside className="w-80 bg-white border-l border-gray-200 flex flex-col">
           <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
             <h3 className="text-sm font-medium text-gray-900">Validation Dashboard</h3>
           </div>
@@ -722,6 +757,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
             </div>
           </div>
         </aside>
+        )}
       </main>
     </div>
   );

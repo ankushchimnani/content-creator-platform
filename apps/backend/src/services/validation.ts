@@ -293,9 +293,9 @@ Your final output MUST follow this exact JSON structure:
   "continuity": [Coverage of Topics Score], 
   "documentation": [Knowledge Application & Assessment Quality Score],
   "feedback": {
-    "relevance": "Structure adherence feedback - what worked well and what needs improvement",
-    "continuity": "Topic coverage feedback - specific areas that need better testing",
-    "documentation": "Assessment quality feedback - suggestions for improving knowledge application testing"
+    "relevance": "Specific structural feedback: identify exact sections missing/weak, suggest concrete improvements, mention specific line numbers or content areas that need work",
+    "continuity": "Topic coverage analysis: identify which specific aspects of the required topic are missing, suggest concrete examples or explanations to add, reference specific content gaps",
+    "documentation": "Assessment quality suggestions: identify weak evaluation criteria, suggest specific rubrics or scoring methods, recommend concrete ways to test knowledge application"
   }
 }
 \`\`\`
@@ -353,9 +353,9 @@ Your final output MUST follow this exact JSON structure:
   "continuity": [Coverage of Topics Score], 
   "documentation": [Ease of Understanding & Engagement Score],
   "feedback": {
-    "relevance": "Structure adherence feedback - what worked well and what needs improvement",
-    "continuity": "Topic coverage feedback - specific areas that need better preview",
-    "documentation": "Engagement and clarity feedback - suggestions for improving preparation effectiveness"
+    "relevance": "Specific structural feedback: identify exact sections missing/weak, suggest concrete improvements, mention specific line numbers or content areas that need work",
+    "continuity": "Topic coverage analysis: identify which specific aspects of the required topic are missing, suggest concrete examples or explanations to add, reference specific content gaps",
+    "documentation": "Engagement improvement suggestions: identify boring/unclear sections, suggest specific interactive elements or examples to add, recommend concrete ways to improve preparation effectiveness"
   }
 }
 \`\`\`
@@ -414,9 +414,9 @@ Your final output MUST follow this exact JSON structure:
   "continuity": [Coverage of Topics Score], 
   "documentation": [Ease of Understanding Score],
   "feedback": {
-    "relevance": "Structure adherence feedback - what worked well and what needs improvement",
-    "continuity": "Topic coverage feedback - specific areas that need better coverage",
-    "documentation": "Understanding clarity feedback - suggestions for improving beginner comprehension"
+    "relevance": "Specific structural feedback: identify exact sections missing/weak, suggest concrete improvements, mention specific line numbers or content areas that need work",
+    "continuity": "Topic coverage analysis: identify which specific aspects of the required topic are missing, suggest concrete examples or explanations to add, reference specific content gaps",
+    "documentation": "Clarity improvement suggestions: identify confusing sentences/terms, suggest specific rewrites, recommend concrete examples or analogies to add for better understanding"
   }
 }
 \`\`\`
@@ -519,9 +519,9 @@ export async function runOpenAIValidation(content: string, brief?: string, assig
         documentation: 0,
       },
       feedback: {
-        relevance: 'Validation failed due to security concerns',
-        continuity: 'Content could not be properly validated',
-        documentation: 'Please revise content and try again',
+        relevance: 'Content analysis failed - please check for formatting issues and try again',
+        continuity: 'Unable to validate content flow - ensure content is complete and properly structured',
+        documentation: 'Validation error occurred - please review content for completeness and clarity',
       },
     };
   }
@@ -572,9 +572,9 @@ export async function runGeminiValidation(content: string, brief?: string, assig
         documentation: 0,
       },
       feedback: {
-        relevance: 'Validation failed due to security concerns',
-        continuity: 'Content could not be properly validated',
-        documentation: 'Please revise content and try again',
+        relevance: 'Content analysis failed - please check for formatting issues and try again',
+        continuity: 'Unable to validate content flow - ensure content is complete and properly structured',
+        documentation: 'Validation error occurred - please review content for completeness and clarity',
       },
     };
   }
@@ -588,7 +588,11 @@ export async function runStub(content: string, brief?: string, assignmentContext
   return {
     provider: 'stub',
     scores: { relevance, continuity, documentation },
-    feedback: { relevance: 'Stub', continuity: 'Stub', documentation: 'Stub' },
+    feedback: { 
+      relevance: 'AI validation unavailable - please ensure content covers the required topic comprehensively', 
+      continuity: 'AI validation unavailable - please ensure content flows logically from introduction to conclusion', 
+      documentation: 'AI validation unavailable - please ensure content is well-structured with clear headings and examples' 
+    },
   };
 }
 

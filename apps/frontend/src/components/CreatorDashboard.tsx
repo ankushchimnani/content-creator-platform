@@ -574,11 +574,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(content.status)}`}>
                                 {content.status}
                               </span>
-                              {content.reviewFeedback && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-medium">
-                                  💬 Has Feedback
-                                </span>
-                              )}
+                              
                             </div>
                             <span className="text-xs text-gray-600">
                               {new Date(content.updatedAt).toLocaleDateString('en-GB')}

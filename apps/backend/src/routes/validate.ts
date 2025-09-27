@@ -57,32 +57,27 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   const start = Date.now();
   const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content, brief, assignmentContext);
   const processingTime = Date.now() - start;
-  type Issue = { start: number; end: number; message: string; severity: 'critical' | 'important' | 'minor' };
-  const computeIssues = (text: string): Issue[] => {
-    const issues: Issue[] = [];
-    if (!/^#\s+/m.test(text)) {
-      issues.push({ start: 0, end: Math.min(20, text.length), message: 'Add an H1 heading at the top', severity: 'important' });
-    }
-    const todoRegex = /\bTODO\b/g;
-    for (let m = todoRegex.exec(text); m; m = todoRegex.exec(text)) {
-      issues.push({ start: m.index, end: m.index + m[0].length, message: 'Resolve TODO', severity: 'minor' });
-    }
-    const lines = text.split(/\n/);
-    let offset = 0;
-    for (const line of lines) {
-      if (line.length > 120) {
-        issues.push({ start: offset, end: offset + line.length, message: 'Line exceeds 120 characters', severity: 'minor' });
-      }
-      offset += line.length + 1;
-    }
-    return issues;
-  };
-  const documentationIssues = computeIssues(content);
+  // Let AI handle all issue detection instead of hardcoded rules
   res.json({
     criteria: {
-      relevance: { score: consensus.relevance, confidence: confidence.relevance, feedback: '', suggestions: [], issues: [] },
-      continuity: { score: consensus.continuity, confidence: confidence.continuity, feedback: '', suggestions: [], issues: [] },
-      documentation: { score: consensus.documentation, confidence: confidence.documentation, feedback: '', suggestions: [], issues: documentationIssues },
+      relevance: { 
+        score: consensus.relevance, 
+        confidence: confidence.relevance, 
+        feedback: successes.length > 0 ? (successes[0]?.feedback?.relevance || '') : '', 
+        issues: [] 
+      },
+      continuity: { 
+        score: consensus.continuity, 
+        confidence: confidence.continuity, 
+        feedback: successes.length > 0 ? (successes[0]?.feedback?.continuity || '') : '', 
+        issues: [] 
+      },
+      documentation: { 
+        score: consensus.documentation, 
+        confidence: confidence.documentation, 
+        feedback: successes.length > 0 ? (successes[0]?.feedback?.documentation || '') : '', 
+        issues: [] 
+      },
     },
     providers: successes.map(s => s.provider),
     overallScore: overall,
@@ -147,28 +142,7 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
     const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content, brief, assignmentContext);
     const processingTime = Date.now() - start;
     
-    type Issue = { start: number; end: number; message: string; severity: 'critical' | 'important' | 'minor' };
-    const computeIssues = (text: string): Issue[] => {
-      const issues: Issue[] = [];
-      if (!/^#\s+/m.test(text)) {
-        issues.push({ start: 0, end: Math.min(20, text.length), message: 'Add an H1 heading at the top', severity: 'important' });
-      }
-      const todoRegex = /\bTODO\b/g;
-      for (let m = todoRegex.exec(text); m; m = todoRegex.exec(text)) {
-        issues.push({ start: m.index, end: m.index + m[0].length, message: 'Resolve TODO', severity: 'minor' });
-      }
-      const lines = text.split(/\n/);
-      let offset = 0;
-      for (const line of lines) {
-        if (line.length > 120) {
-          issues.push({ start: offset, end: offset + line.length, message: 'Line exceeds 120 characters', severity: 'minor' });
-        }
-        offset += line.length + 1;
-      }
-      return issues;
-    };
-
-    const documentationIssues = computeIssues(content);
+    // Let AI handle all issue detection instead of hardcoded rules
 
     res.json({
       criteria: {
@@ -176,22 +150,19 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
           score: consensus.relevance, 
           confidence: confidence.relevance, 
           feedback: successes.length > 0 ? (successes[0]?.feedback?.relevance || '') : '', 
-          suggestions: [], 
           issues: [] 
         },
         continuity: { 
           score: consensus.continuity, 
           confidence: confidence.continuity, 
           feedback: successes.length > 0 ? (successes[0]?.feedback?.continuity || '') : '', 
-          suggestions: [], 
           issues: [] 
         },
         documentation: { 
           score: consensus.documentation, 
           confidence: confidence.documentation, 
           feedback: successes.length > 0 ? (successes[0]?.feedback?.documentation || '') : '', 
-          suggestions: [], 
-          issues: documentationIssues 
+          issues: [] 
         },
       },
       providers: successes.map(s => s.provider),

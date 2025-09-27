@@ -71,7 +71,7 @@ export function Settings({ user, token, onBack }: Props) {
           >
             <span className="material-icons">arrow_back</span>
           </button>
-          <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+          <h2 className="text-xl font-bold text-gray-900">Settings</h2>
         </div>
         
         <div className="flex items-center gap-4">

@@ -16,9 +16,9 @@ type ValidationResult = {
   llmProvider: string;
   modelVersion: string;
   criteria: {
-    relevance: { score: number; feedback: string; suggestions: string[] };
-    continuity: { score: number; feedback: string; suggestions: string[] };
-    documentation: { score: number; feedback: string; suggestions: string[] };
+    relevance: { score: number; feedback: string; issues: any[] };
+    continuity: { score: number; feedback: string; issues: any[] };
+    documentation: { score: number; feedback: string; issues: any[] };
   };
   overallScore: number;
   processingTimeMs: number;
@@ -640,47 +640,33 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Adherence to Structure</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {result.criteria.relevance.score.toFixed(1)}/10
+                                {(result.criteria?.relevance?.score ?? 0).toFixed(1)}/10
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria.relevance.feedback}
+                                {result.criteria?.relevance?.feedback || 'No feedback available'}
                               </div>
                             </div>
                             
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Coverage of Topics</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {result.criteria.continuity.score.toFixed(1)}/10
+                                {(result.criteria?.continuity?.score ?? 0).toFixed(1)}/10
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria.continuity.feedback}
+                                {result.criteria?.continuity?.feedback || 'No feedback available'}
                               </div>
                             </div>
                             
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Ease of Understanding</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {result.criteria.documentation.score.toFixed(1)}/10
+                                {(result.criteria?.documentation?.score ?? 0).toFixed(1)}/10
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria.documentation.feedback}
+                                {result.criteria?.documentation?.feedback || 'No feedback available'}
                               </div>
                             </div>
                           </div>
-                          
-                          {result.criteria.relevance.suggestions.length > 0 && (
-                            <div className="mt-3">
-                              <div className="text-sm font-medium text-blue-800 mb-2">AI Suggestions:</div>
-                              <ul className="text-sm text-blue-700 space-y-1">
-                                {result.criteria.relevance.suggestions.map((suggestion, i) => (
-                                  <li key={i} className="flex items-start gap-2">
-                                    <span className="text-blue-500 mt-1">•</span>
-                                    <span>{suggestion}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
