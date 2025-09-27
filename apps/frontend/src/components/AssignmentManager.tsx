@@ -429,7 +429,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
             <div>
               <label className="block text-sm font-medium text-text-light mb-2">
-                Prerequisite Topics
+                Topics taught so far
               </label>
               <div className="flex gap-2 mb-2">
                 <input
@@ -471,7 +471,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
             <div>
               <label className="block text-sm font-medium text-text-light mb-2">
-                Guidelines (Optional)
+                Sub-topics (Optional)
               </label>
               <textarea
                 value={guidelines}
@@ -620,7 +620,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                   {/* Guidelines */}
                   {assignment.guidelines && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Guidelines</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Sub-topics</h4>
                       <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md">
                         {assignment.guidelines}
                       </p>

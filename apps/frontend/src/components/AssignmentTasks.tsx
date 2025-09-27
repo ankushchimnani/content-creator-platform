@@ -322,7 +322,7 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
                   {/* Prerequisites */}
                   {assignment.prerequisiteTopics.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Prerequisites</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Topics taught so far</h4>
                       <div className="flex flex-wrap gap-2">
                         {assignment.prerequisiteTopics.map((topic, index) => (
                           <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
@@ -336,7 +336,7 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
                   {/* Guidelines */}
                   {assignment.guidelines && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Guidelines</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Sub-topics</h4>
                       <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md">
                         {assignment.guidelines}
                       </p>
