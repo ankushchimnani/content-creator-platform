@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiCall } from '../utils/api';
-import { marked } from 'marked';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github.css';
+import { MarkdownComponents } from '../utils/markdownComponents';
 import * as monaco from 'monaco-editor';
 
 type User = {
@@ -426,41 +430,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
     }
   };
 
-  const renderMarkdownPreview = (text: string) => {
-    // Preprocess text to fix common markdown mistakes
-    let processedText = text
-      // Fix links with spaces: [text] (url) -> [text](url)
-      .replace(/\[([^\]]+)\]\s+\(([^)]+)\)/g, '[$1]($2)')
-      // Fix URLs without protocol: www.example.com -> https://www.example.com
-      .replace(/\[([^\]]+)\]\((www\.[^)]+)\)/g, '[$1](https://$2)')
-      // Fix URLs without protocol: example.com -> https://example.com (but not if already has protocol)
-      .replace(/\[([^\]]+)\]\(([^h][^)]+)\)/g, (match, text, url) => {
-        if (!url.startsWith('http') && !url.startsWith('mailto:') && !url.startsWith('#')) {
-          return `[${text}](https://${url})`;
-        }
-        return match;
-      });
-    
-    // Debug logging (remove in production)
-    if (processedText !== text) {
-      console.log('Markdown preprocessing:', { original: text, processed: processedText });
-    }
-    
-    // Configure marked for better security and rendering
-    marked.setOptions({
-      breaks: true, // Convert line breaks to <br>
-      gfm: true, // GitHub Flavored Markdown
-    });
-    
-    try {
-      const html = marked.parse(processedText) as string;
-      // Add target="_blank" to all links for better UX
-      return html.replace(/<a href="/g, '<a target="_blank" rel="noopener noreferrer" href="');
-    } catch (error) {
-      console.error('Markdown parsing error:', error);
-      return text.replace(/\n/g, '<br>'); // Fallback to basic rendering
-    }
-  };
 
   return (
     <div className={`min-h-screen bg-gray-50 ${isExpanded ? 'fixed inset-0 z-50' : ''}`}>
@@ -594,7 +563,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 <div className={`flex ${isExpanded ? 'h-[calc(100vh-200px)]' : 'h-[500px]'}`}>
                   {/* Monaco Editor */}
                   <div className="flex-1 flex flex-col">
-                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-center">
                       <span className="text-sm font-medium text-gray-700">MARKDOWN EDITOR</span>
                     </div>
                     <div 
@@ -609,18 +578,21 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   </div>
 
                   {/* Preview */}
-                  <div className="flex-1 flex flex-col border-l border-gray-200">
-                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                  <div className="flex-1 flex flex-col border-l border-gray-200 min-h-0">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-center">
                       <span className="text-sm font-medium text-gray-700">LIVE PREVIEW</span>
                     </div>
-                    <div className="flex-1 px-4 py-3 overflow-auto bg-white">
+                    <div className="flex-1 overflow-auto bg-white min-h-0">
                       {content ? (
-                        <div 
-                          className="prose max-w-none prose-sm prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline prose-strong:text-gray-900 prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-blockquote:border-l-blue-500 prose-blockquote:text-gray-700"
-                          dangerouslySetInnerHTML={{ 
-                            __html: renderMarkdownPreview(content)
-                          }}
-                        />
+                        <div className="p-4 text-left max-w-none">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeHighlight]}
+                            components={MarkdownComponents}
+                          >
+                            {content}
+                          </ReactMarkdown>
+                        </div>
                       ) : (
                         <div className="text-gray-500 text-center py-8">
                           <div className="text-lg mb-2">Start writing...</div>
