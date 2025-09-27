@@ -92,6 +92,73 @@ contentRouter.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Get individual content by ID
+contentRouter.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const user = req.user!;
+    const contentId = req.params.id;
+    
+    if (!contentId) {
+      return res.status(400).json({ error: 'Content ID is required' });
+    }
+
+    let content;
+    if (user.role === 'ADMIN') {
+      // Admins can see content assigned to them for review or their own content
+      content = await prisma.content.findFirst({
+        where: {
+          id: contentId,
+          OR: [
+            { authorId: user.id },
+            { 
+              author: { assignedAdminId: user.id }
+            }
+          ]
+        },
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          },
+          reviewer: {
+            select: { id: true, name: true, email: true }
+          },
+          validationResults: {
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      });
+    } else {
+      // Creators can only see their own content
+      content = await prisma.content.findFirst({
+        where: { 
+          id: contentId,
+          authorId: user.id 
+        },
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          },
+          reviewer: {
+            select: { id: true, name: true, email: true }
+          },
+          validationResults: {
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      });
+    }
+
+    if (!content) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    res.json({ content });
+  } catch (error) {
+    console.error('Error fetching content:', error);
+    res.status(500).json({ error: 'Failed to fetch content' });
+  }
+});
+
 // Create new content
 contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) => {
   try {

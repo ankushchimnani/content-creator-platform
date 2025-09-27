@@ -91,6 +91,121 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   });
 });
 
+// Re-validate existing content by ID
+validateRouter.post('/:id', requireAuth, async (req, res) => {
+  try {
+    const contentId = req.params.id;
+    const user = req.user!;
+    
+    if (!contentId) {
+      return res.status(400).json({ error: 'Content ID is required' });
+    }
+
+    // Fetch the content
+    let content;
+    if (user.role === 'ADMIN') {
+      // Admins can re-validate content assigned to them for review or their own content
+      content = await prisma.content.findFirst({
+        where: {
+          id: contentId,
+          OR: [
+            { authorId: user.id },
+            { 
+              author: { assignedAdminId: user.id }
+            }
+          ]
+        },
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      });
+    } else {
+      // Creators can only re-validate their own content
+      content = await prisma.content.findFirst({
+        where: { 
+          id: contentId,
+          authorId: user.id 
+        },
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      });
+    }
+
+    if (!content) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    // Check if content is linked to an assignment
+    let assignmentContext: AssignmentContext | undefined;
+    try {
+      const assignment = await prisma.$queryRaw`
+        SELECT topic, "prerequisiteTopics", guidelines 
+        FROM "ContentAssignment" 
+        WHERE "contentId" = ${contentId}
+      ` as Array<{
+        topic: string;
+        prerequisiteTopics: string[];
+        guidelines: string | null;
+      }>;
+
+      if (assignment.length > 0) {
+        const assignmentData = assignment[0];
+        if (assignmentData) {
+          assignmentContext = {
+            topic: assignmentData.topic,
+            prerequisiteTopics: assignmentData.prerequisiteTopics,
+            guidelines: assignmentData.guidelines || undefined,
+            contentType: (content as any).contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching assignment context:', error);
+      // Continue without assignment context if there's an error
+    }
+
+    const start = Date.now();
+    const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content.content, content.brief || undefined, assignmentContext);
+    const processingTime = Date.now() - start;
+
+    // Store validation results in database
+    const validationResults = [];
+    for (const result of successes) {
+      const validationResult = await prisma.validationResult.create({
+        data: {
+          contentId: content.id,
+          llmProvider: result.provider === 'openai' ? 'OPENAI' : result.provider === 'gemini' ? 'ANTHROPIC' : 'LOCAL',
+          modelVersion: result.provider === 'openai' ? 'gpt-4o-mini' : result.provider === 'gemini' ? 'gemini-1.5-flash' : 'stub',
+          criteria: {
+            relevance: { score: result.scores.relevance, feedback: result.feedback.relevance, issues: [] },
+            continuity: { score: result.scores.continuity, feedback: result.feedback.continuity, issues: [] },
+            documentation: { score: result.scores.documentation, feedback: result.feedback.documentation, issues: [] }
+          },
+          overallScore: Math.round((result.scores.relevance + result.scores.continuity + result.scores.documentation) / 3),
+          processingTimeMs: processingTime,
+        },
+      });
+      validationResults.push(validationResult);
+    }
+
+    res.json({
+      validationResults,
+      overallScore: overall,
+      confidence: overallConfidence,
+      processingTimeMs: processingTime,
+      successes,
+    });
+  } catch (error) {
+    console.error('Error re-validating content:', error);
+    res.status(500).json({ error: 'Failed to re-validate content' });
+  }
+});
+
 // Validate content specifically for an assignment
 validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) => {
   try {

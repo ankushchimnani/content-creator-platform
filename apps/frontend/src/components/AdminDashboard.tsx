@@ -80,6 +80,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
   const [openCreateAssignment, setOpenCreateAssignment] = useState(false);
   const [tasksFilter, setTasksFilter] = useState<'all' | 'assigned' | 'review' | 'rejected' | 'approved'>('all');
   const [assignedCreators, setAssignedCreators] = useState<User[]>([]);
+  const [isReviewMode, setIsReviewMode] = useState(false);
 
   useEffect(() => {
     fetchReviewQueue();
@@ -305,13 +306,34 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
             token={token}
             triggerCreate={openCreateAssignment}
             onCreateConsumed={() => setOpenCreateAssignment(false)}
-            onSwitchToReview={(contentId) => {
+            onSwitchToReview={async (contentId) => {
               setActiveTab('review');
               if (contentId) {
-                // Find the content in the review queue and select it
-                const content = reviewQueue.find(c => c.id === contentId);
+                // First try to find the content in the review queue
+                let content = reviewQueue.find(c => c.id === contentId);
+                
+                // If not found in review queue, fetch it directly
+                if (!content) {
+                  try {
+                    const res = await apiCall(`/api/content/${contentId}`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      content = data.content;
+                    }
+                  } catch (error) {
+                    console.error('Failed to fetch content:', error);
+                    alert('Failed to load content for review');
+                    return;
+                  }
+                }
+                
                 if (content) {
                   setSelectedContent(content);
+                  setIsReviewMode(false); // Set to view mode by default
+                } else {
+                  alert('Content not found');
                 }
               }
             }}
@@ -500,26 +522,83 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                 {reviewQueue.map((content) => (
                   <div
                     key={content.id}
-                    onClick={() => setSelectedContent(content)}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    className={`p-3 rounded-lg border transition-colors ${
                       selectedContent?.id === content.id
                         ? 'border-purple-200 bg-purple-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className="font-medium text-sm text-gray-900 truncate">
-                      {content.title}
+                    <div 
+                      onClick={() => setSelectedContent(content)}
+                      className="cursor-pointer"
+                    >
+                      <div className="font-medium text-sm text-gray-900 truncate">
+                        {content.title}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        by {content.author.name}
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(content.status)}`}>
+                          {content.status}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {content.submittedAt && new Date(content.submittedAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      by {content.author.name}
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(content.status)}`}>
-                        {content.status}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {content.submittedAt && new Date(content.submittedAt).toLocaleDateString()}
-                      </span>
+                    
+                    {/* View Content Button */}
+                    <div className="mt-3 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          // Ensure we have the full content data with validation results
+                          try {
+                            const res = await apiCall(`/api/content/${content.id}`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setSelectedContent(data.content);
+                              setIsReviewMode(false); // Set to view mode
+                            } else {
+                              // Fallback to existing content if API fails
+                              setSelectedContent(content);
+                              setIsReviewMode(false); // Set to view mode
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch full content:', error);
+                            // Fallback to existing content
+                            setSelectedContent(content);
+                            setIsReviewMode(false); // Set to view mode
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View Content
+                      </button>
+                      
+                      {/* Review Content Button - Only show for REVIEW status content */}
+                      {content.status === 'REVIEW' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedContent(content);
+                            setIsReviewMode(true); // Set to review mode
+                          }}
+                          className="w-full px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors flex items-center justify-center gap-1 mt-2"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Review Content
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -640,9 +719,88 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                     </div>
                   )}
 
-                  {/* Review Form */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <h3 className="font-medium text-gray-900 mb-4">Review Decision</h3>
+                  {/* Content Status Information */}
+                  <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-gray-700">Content Status:</span>
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        selectedContent.status === 'REVIEW' 
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : selectedContent.status === 'APPROVED'
+                          ? 'bg-green-100 text-green-800'
+                          : selectedContent.status === 'REJECTED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedContent.status}
+                      </span>
+                    </div>
+                    {selectedContent.status === 'REVIEW' && (
+                      <p className="text-sm text-gray-600">
+                        This content is ready for review. You can approve or reject it.
+                      </p>
+                    )}
+                    {selectedContent.status === 'APPROVED' && (
+                      <p className="text-sm text-gray-600">
+                        ------------------------------------
+                      </p>
+                    )}
+                    {selectedContent.status === 'REJECTED' && (
+                      <p className="text-sm text-gray-600">
+                        This content was rejected. It can only be reviewed again after the creator updates it.
+                      </p>
+                    )}
+                    {selectedContent.status === 'DRAFT' && (
+                      <p className="text-sm text-gray-600">
+                        This content is still in draft status and cannot be reviewed yet.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Re-validate Button - Only show in review mode and for REVIEW status content */}
+                  {isReviewMode && selectedContent?.status === 'REVIEW' && (
+                    <div className="mb-6">
+                      <button
+                        onClick={async () => {
+                          if (!selectedContent) return;
+                          
+                          try {
+                            const res = await apiCall(`/api/validate/${selectedContent.id}`, {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            
+                            if (res.ok) {
+                              const data = await res.json();
+                              // Update the selected content with new validation results
+                              setSelectedContent({
+                                ...selectedContent,
+                                validationResults: data.validationResults
+                              });
+                              alert('Content re-validated successfully!');
+                            } else {
+                              const error = await res.json();
+                              alert(`Failed to re-validate content: ${error.error}`);
+                            }
+                          } catch (error) {
+                            console.error('Failed to re-validate content:', error);
+                            alert('Failed to re-validate content');
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Re-validate with LLM
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Review Form - Only show in review mode and for REVIEW status content */}
+                  {isReviewMode && selectedContent?.status === 'REVIEW' && (
+                    <div className="border-t border-gray-200 pt-6">
+                      <h3 className="font-medium text-gray-900 mb-4">Review Decision</h3>
                     
                     <div className="space-y-4">
                       <div className="flex gap-4">
@@ -711,7 +869,8 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                         </button>
                       </div>
                     </div>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
