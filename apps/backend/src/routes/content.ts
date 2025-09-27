@@ -106,38 +106,52 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
     const wordCount = countWords(content);
     const readingTime = calculateReadingTime(content);
 
-    const newContent = await prisma.content.create({
-      data: {
-        title,
-        content,
-        brief: brief || null,
-        tags,
-        category: category || null,
-        contentType,
-        difficulty: difficulty || null,
-        wordCount,
-        readingTime,
-        authorId: user.id,
-      },
-      include: {
-        author: {
-          select: { id: true, name: true, email: true }
+    // Wrap content creation and audit logging in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const newContent = await tx.content.create({
+        data: {
+          title,
+          content,
+          brief: brief || null,
+          tags,
+          category: category || null,
+          contentType: contentType as any,
+          difficulty: difficulty || null,
+          wordCount,
+          readingTime,
+          authorId: user.id,
+        } as any,
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          }
         }
-      }
+      });
+
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CONTENT_CREATED',
+          metadata: { contentId: newContent.id, title }
+        }
+      });
+
+      return newContent;
     });
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'CONTENT_CREATED',
-        metadata: { contentId: newContent.id, title }
-      }
-    });
-
-    res.status(201).json({ content: newContent });
+    res.status(201).json({ content: result });
   } catch (error) {
     console.error('Error creating content:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2002') {
+      return res.status(409).json({ error: 'Content with this title already exists' });
+    }
+    if ((error as any)?.code === 'P2003') {
+      return res.status(400).json({ error: 'Invalid reference to related resource' });
+    }
+    
     res.status(500).json({ error: 'Failed to create content' });
   }
 });
@@ -195,23 +209,24 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
       updateData.version = content.version + 1;
     }
 
-    const updatedContent = await prisma.content.update({
-      where: { id: contentId },
-      data: updateData,
-      include: {
-        author: {
-          select: { id: true, name: true, email: true }
-        },
-        reviewer: {
-          select: { id: true, name: true, email: true }
+    // Wrap content update, validation storage, and audit logging in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedContent = await tx.content.update({
+        where: { id: contentId },
+        data: updateData,
+        include: {
+          author: {
+            select: { id: true, name: true, email: true }
+          },
+          reviewer: {
+            select: { id: true, name: true, email: true }
+          }
         }
-      }
-    });
+      });
 
-    // Store validation results if provided
-    if (validationData) {
-      try {
-        await prisma.validationResult.create({
+      // Store validation results if provided
+      if (validationData) {
+        await tx.validationResult.create({
           data: {
             contentId: contentId,
             llmProvider: 'OPENAI', // Default provider
@@ -221,33 +236,41 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
             processingTimeMs: validationData.processingTime || 0
           }
         });
-        console.log('Validation results stored for content:', contentId);
-      } catch (validationError) {
-        console.error('Failed to store validation results:', validationError);
-        // Don't fail the submission if validation storage fails
       }
-    }
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'CONTENT_SUBMITTED',
-        metadata: { 
-          contentId, 
-          reviewerId: content.author.assignedAdminId,
-          title: content.title,
-          hasValidationData: !!validationData
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CONTENT_SUBMITTED',
+          metadata: { 
+            contentId, 
+            reviewerId: content.author.assignedAdminId,
+            title: content.title,
+            version: updateData.version || content.version,
+            hasValidationData: !!validationData
+          }
         }
-      }
+      });
+
+      return updatedContent;
     });
 
     res.json({ 
-      content: updatedContent, 
+      content: result, 
       message: 'Content submitted for review successfully' 
     });
   } catch (error) {
     console.error('Error submitting content:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2025') {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+    if ((error as any)?.code === 'P2003') {
+      return res.status(400).json({ error: 'Invalid reference to reviewer' });
+    }
+    
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });

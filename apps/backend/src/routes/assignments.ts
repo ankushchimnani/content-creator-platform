@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { ContentType } from '@prisma/client';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 
@@ -12,7 +11,7 @@ const createAssignmentSchema = z.object({
   topic: z.string().min(1).max(200),
   prerequisiteTopics: z.array(z.string()).default([]),
   guidelines: z.string().optional(),
-  contentType: z.nativeEnum(ContentType).default(ContentType.LECTURE_NOTE),
+  contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).default('LECTURE_NOTE'),
   difficulty: z.string().optional(), // For ASSIGNMENT type
   dueDate: z.string().datetime().optional(),
   assignedToId: z.string(),
@@ -22,7 +21,7 @@ const updateAssignmentSchema = z.object({
   topic: z.string().min(1).max(200).optional(),
   prerequisiteTopics: z.array(z.string()).optional(),
   guidelines: z.string().optional(),
-  contentType: z.nativeEnum(ContentType).optional(),
+  contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).optional(),
   difficulty: z.string().optional(), // For ASSIGNMENT type
   dueDate: z.string().datetime().optional(),
   status: z.enum(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE']).optional(),
@@ -34,26 +33,14 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
     const adminId = req.user!.id;
     
     // Get assignments created by this admin
-    const assignments = await prisma.contentAssignment.findMany({
+    const assignments = await (prisma as any).contentAssignment.findMany({
       where: { assignedById: adminId },
       include: {
         assignedTo: {
           select: { id: true, name: true, email: true }
         },
         content: {
-          select: { 
-            id: true, 
-            title: true, 
-            status: true, 
-            createdAt: true,
-            updatedAt: true,
-            submittedAt: true,
-            reviewedAt: true,
-            approvedAt: true,
-            rejectedAt: true,
-            reviewFeedback: true
-          },
-          include: {
+          include: { 
             validationResults: {
               orderBy: { createdAt: 'desc' },
               take: 1
@@ -93,10 +80,10 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
 
     // Create virtual assignments for unlinked content
     const unlinkedContent = allContent.filter(content => 
-      !assignments.some(assignment => assignment.contentId === content.id)
+      !assignments.some((assignment: any) => assignment.contentId === content.id)
     );
 
-    const virtualAssignments = unlinkedContent.map(content => ({
+    const virtualAssignments = unlinkedContent.map((content: any) => ({
       id: `virtual-${content.id}`,
       topic: content.title,
       prerequisiteTopics: [],
@@ -138,27 +125,13 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
   try {
     const creatorId = req.user!.id;
     
-    const assignments = await prisma.contentAssignment.findMany({
+    const assignments = await (prisma as any).contentAssignment.findMany({
       where: { assignedToId: creatorId },
       include: {
         assignedBy: {
           select: { id: true, name: true, email: true }
         },
         content: {
-          select: { 
-            id: true, 
-            title: true, 
-            status: true, 
-            createdAt: true,
-            updatedAt: true,
-            submittedAt: true,
-            reviewedAt: true,
-            approvedAt: true,
-            rejectedAt: true,
-            reviewFeedback: true,
-            content: true,
-            brief: true
-          },
           include: {
             validationResults: {
               orderBy: { createdAt: 'desc' },
@@ -206,44 +179,59 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       return res.status(403).json({ error: 'Creator is not assigned to you' });
     }
 
-    const assignment = await prisma.contentAssignment.create({
-      data: {
-        topic,
-        prerequisiteTopics,
-        guidelines: guidelines || null,
-        contentType,
-        difficulty: difficulty || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        assignedById: adminId,
-        assignedToId,
-      },
-      include: {
-        assignedTo: {
-          select: { id: true, name: true, email: true }
-        },
-        assignedBy: {
-          select: { id: true, name: true, email: true }
-        }
-      }
-    });
-
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: adminId,
-        action: 'ASSIGNMENT_CREATED',
-        metadata: { 
-          assignmentId: assignment.id, 
-          topic: assignment.topic,
+    // Wrap assignment creation and audit logging in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create assignment
+      const assignment = await (tx as any).contentAssignment.create({
+        data: {
+          topic,
+          prerequisiteTopics,
+          guidelines: guidelines || null,
+          contentType,
+          difficulty: difficulty || null,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          assignedById: adminId,
           assignedToId,
-          assignedToName: assignedCreator.name
+        },
+        include: {
+          assignedTo: {
+            select: { id: true, name: true, email: true }
+          },
+          assignedBy: {
+            select: { id: true, name: true, email: true }
+          }
         }
-      }
+      });
+
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: adminId,
+          action: 'ASSIGNMENT_CREATED',
+          metadata: { 
+            assignmentId: assignment.id, 
+            topic: assignment.topic,
+            assignedToId,
+            assignedToName: assignedCreator.name
+          }
+        }
+      });
+
+      return assignment;
     });
 
-    res.status(201).json({ assignment });
+    res.status(201).json({ assignment: result });
   } catch (error) {
     console.error('Error creating assignment:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2002') {
+      return res.status(409).json({ error: 'Assignment already exists' });
+    }
+    if ((error as any)?.code === 'P2003') {
+      return res.status(400).json({ error: 'Invalid reference to related resource' });
+    }
+    
     res.status(500).json({ error: 'Failed to create assignment' });
   }
 });
@@ -260,7 +248,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     }
 
     // Check if assignment exists and belongs to this admin
-    const existingAssignment = await prisma.contentAssignment.findUnique({
+    const existingAssignment = await (prisma as any).contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedById: true, status: true }
     });
@@ -275,52 +263,66 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
 
     const { topic, prerequisiteTopics, guidelines, contentType, difficulty, dueDate, status } = parsed.data;
     
-    const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId as string },
-      data: {
-        ...(topic && { topic }),
-        ...(prerequisiteTopics && { prerequisiteTopics }),
-        ...(guidelines !== undefined && { guidelines: guidelines || null }),
-        ...(contentType && { contentType }),
-        ...(difficulty !== undefined && { difficulty: difficulty || null }),
-        ...(dueDate && { dueDate: new Date(dueDate) }),
-        ...(status && { status }),
-      },
-      include: {
-        assignedTo: {
-          select: { id: true, name: true, email: true }
+    // Wrap assignment update and audit logging in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedAssignment = await (tx as any).contentAssignment.update({
+        where: { id: assignmentId as string },
+        data: {
+          ...(topic && { topic }),
+          ...(prerequisiteTopics && { prerequisiteTopics }),
+          ...(guidelines !== undefined && { guidelines: guidelines || null }),
+          ...(contentType && { contentType }),
+          ...(difficulty !== undefined && { difficulty: difficulty || null }),
+          ...(dueDate && { dueDate: new Date(dueDate) }),
+          ...(status && { status }),
         },
-        assignedBy: {
-          select: { id: true, name: true, email: true }
-        },
-        content: {
-          select: { 
-            id: true, 
-            title: true, 
-            status: true, 
-            createdAt: true,
-            updatedAt: true 
+        include: {
+          assignedTo: {
+            select: { id: true, name: true, email: true }
+          },
+          assignedBy: {
+            select: { id: true, name: true, email: true }
+          },
+          content: {
+            select: { 
+              id: true, 
+              title: true, 
+              status: true, 
+              createdAt: true,
+              updatedAt: true 
+            }
           }
         }
-      }
-    });
+      });
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: adminId,
-        action: 'ASSIGNMENT_UPDATED',
-        metadata: { 
-          assignmentId: assignmentId, 
-          topic: updatedAssignment.topic,
-          changes: parsed.data
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: adminId,
+          action: 'ASSIGNMENT_UPDATED',
+          metadata: { 
+            assignmentId: assignmentId, 
+            topic: updatedAssignment.topic,
+            changes: parsed.data
+          }
         }
-      }
+      });
+
+      return updatedAssignment;
     });
 
-    res.json({ assignment: updatedAssignment });
+    res.json({ assignment: result });
   } catch (error) {
     console.error('Error updating assignment:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2002') {
+      return res.status(409).json({ error: 'Assignment update conflicts with existing data' });
+    }
+    if ((error as any)?.code === 'P2025') {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    
     res.status(500).json({ error: 'Failed to update assignment' });
   }
 });
@@ -332,7 +334,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
     const creatorId = req.user!.id;
 
     // Check if assignment exists and is assigned to this creator
-    const assignment = await prisma.contentAssignment.findUnique({
+    const assignment = await (prisma as any).contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, status: true, topic: true }
     });
@@ -349,34 +351,45 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
       return res.status(400).json({ error: 'Assignment is not in assigned status' });
     }
 
-    const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId as string },
-      data: { status: 'IN_PROGRESS' },
-      include: {
-        assignedTo: {
-          select: { id: true, name: true, email: true }
-        },
-        assignedBy: {
-          select: { id: true, name: true, email: true }
+    // Wrap assignment update and audit logging in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedAssignment = await (tx as any).contentAssignment.update({
+        where: { id: assignmentId as string },
+        data: { status: 'IN_PROGRESS' },
+        include: {
+          assignedTo: {
+            select: { id: true, name: true, email: true }
+          },
+          assignedBy: {
+            select: { id: true, name: true, email: true }
+          }
         }
-      }
+      });
+
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: creatorId,
+          action: 'ASSIGNMENT_STARTED',
+          metadata: { 
+            assignmentId: assignmentId, 
+            topic: assignment.topic
+          }
+        }
+      });
+
+      return updatedAssignment;
     });
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: creatorId,
-        action: 'ASSIGNMENT_STARTED',
-        metadata: { 
-          assignmentId: assignmentId, 
-          topic: assignment.topic
-        }
-      }
-    });
-
-    res.json({ assignment: updatedAssignment });
+    res.json({ assignment: result });
   } catch (error) {
     console.error('Error starting assignment:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2025') {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    
     res.status(500).json({ error: 'Failed to start assignment' });
   }
 });
@@ -393,7 +406,7 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
     }
 
     // Verify assignment belongs to creator
-    const assignment = await prisma.contentAssignment.findUnique({
+    const assignment = await (prisma as any).contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, contentId: true, topic: true }
     });
@@ -424,36 +437,37 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
       return res.status(403).json({ error: 'Content does not belong to you' });
     }
 
-    // Link content to assignment and mark as completed
-    const updatedAssignment = await prisma.contentAssignment.update({
-      where: { id: assignmentId as string },
-      data: { 
-        contentId: contentId,
-        status: 'COMPLETED'
-      },
-      include: {
-        assignedTo: {
-          select: { id: true, name: true, email: true }
+    // Wrap all operations in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Link content to assignment and mark as completed
+      const updatedAssignment = await (tx as any).contentAssignment.update({
+        where: { id: assignmentId as string },
+        data: { 
+          contentId: contentId,
+          status: 'COMPLETED'
         },
-        assignedBy: {
-          select: { id: true, name: true, email: true }
-        },
-        content: {
-          select: { 
-            id: true, 
-            title: true, 
-            status: true, 
-            createdAt: true,
-            updatedAt: true 
+        include: {
+          assignedTo: {
+            select: { id: true, name: true, email: true }
+          },
+          assignedBy: {
+            select: { id: true, name: true, email: true }
+          },
+          content: {
+            select: { 
+              id: true, 
+              title: true, 
+              status: true, 
+              createdAt: true,
+              updatedAt: true 
+            }
           }
         }
-      }
-    });
+      });
 
-    // Store validation results if provided
-    if (validationData) {
-      try {
-        await prisma.validationResult.create({
+      // Store validation results if provided
+      if (validationData) {
+        await tx.validationResult.create({
           data: {
             contentId: contentId,
             llmProvider: 'OPENAI', // Default provider
@@ -463,31 +477,38 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
             processingTimeMs: validationData.processingTime || 0
           }
         });
-        console.log('Validation results stored for assignment content:', contentId);
-      } catch (validationError) {
-        console.error('Failed to store validation results:', validationError);
-        // Don't fail the assignment completion if validation storage fails
       }
-    }
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: creatorId,
-        action: 'ASSIGNMENT_COMPLETED',
-        metadata: { 
-          assignmentId: assignmentId, 
-          contentId: contentId,
-          contentTitle: content.title,
-          topic: assignment.topic,
-          hasValidationData: !!validationData // Added this
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: creatorId,
+          action: 'ASSIGNMENT_COMPLETED',
+          metadata: { 
+            assignmentId: assignmentId, 
+            contentId: contentId,
+            contentTitle: content.title,
+            topic: assignment.topic,
+            hasValidationData: !!validationData
+          }
         }
-      }
+      });
+
+      return updatedAssignment;
     });
 
-    res.json({ assignment: updatedAssignment });
+    res.json({ assignment: result });
   } catch (error) {
     console.error('Error linking content to assignment:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2002') {
+      return res.status(409).json({ error: 'Content already linked to another assignment' });
+    }
+    if ((error as any)?.code === 'P2003') {
+      return res.status(400).json({ error: 'Invalid reference to related resource' });
+    }
+    
     res.status(500).json({ error: 'Failed to link content to assignment' });
   }
 });
@@ -499,7 +520,7 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
     const adminId = req.user!.id;
 
     // Check if assignment exists and belongs to this admin
-    const assignment = await prisma.contentAssignment.findUnique({
+    const assignment = await (prisma as any).contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedById: true, topic: true, contentId: true }
     });
@@ -516,25 +537,38 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
       return res.status(400).json({ error: 'Cannot delete assignment with linked content' });
     }
 
-    await prisma.contentAssignment.delete({
-      where: { id: assignmentId as string }
-    });
+    // Wrap assignment deletion and audit logging in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete the assignment
+      await (tx as any).contentAssignment.delete({
+        where: { id: assignmentId as string }
+      });
 
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: adminId,
-        action: 'ASSIGNMENT_DELETED',
-        metadata: { 
-          assignmentId: assignmentId, 
-          topic: assignment.topic
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: adminId,
+          action: 'ASSIGNMENT_DELETED',
+          metadata: { 
+            assignmentId: assignmentId, 
+            topic: assignment.topic
+          }
         }
-      }
+      });
     });
 
     res.json({ message: 'Assignment deleted successfully' });
   } catch (error) {
     console.error('Error deleting assignment:', error);
+    
+    // Handle specific database errors
+    if ((error as any)?.code === 'P2025') {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    if ((error as any)?.code === 'P2003') {
+      return res.status(400).json({ error: 'Cannot delete assignment with linked content' });
+    }
+    
     res.status(500).json({ error: 'Failed to delete assignment' });
   }
 });

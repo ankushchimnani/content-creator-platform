@@ -93,7 +93,7 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
 
   const fetchTasks = async () => {
     try {
-      const res = await apiCall('/api/assignments', {
+      const res = await apiCall('/api/assignments/my-tasks', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
