@@ -597,7 +597,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                         <div key={index} className="space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-blue-800">
-                              Overall Score: {result.overallScore.toFixed(1)}/10
+                              Overall Score: {result.overallScore.toFixed(1)}/100
                             </span>
                             <span className="text-xs text-blue-600">
                               {result.llmProvider} • {result.modelVersion}
@@ -608,7 +608,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Adherence to Structure</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.relevance?.score ?? 0).toFixed(1)}/10
+                                {(result.criteria?.relevance?.score ?? 0).toFixed(1)}/100
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 {result.criteria?.relevance?.feedback || 'No feedback available'}
@@ -618,7 +618,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Coverage of Topics</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.continuity?.score ?? 0).toFixed(1)}/10
+                                {(result.criteria?.continuity?.score ?? 0).toFixed(1)}/100
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 {result.criteria?.continuity?.feedback || 'No feedback available'}
@@ -628,7 +628,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                             <div className="p-3 bg-white rounded border border-blue-100">
                               <div className="text-sm font-medium text-gray-700 mb-1">Ease of Understanding</div>
                               <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.documentation?.score ?? 0).toFixed(1)}/10
+                                {(result.criteria?.documentation?.score ?? 0).toFixed(1)}/100
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 {result.criteria?.documentation?.feedback || 'No feedback available'}

@@ -242,7 +242,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
       // Show validation results to user before submission
       const shouldProceed = confirm(
-        `Validation completed with score: ${validationData.overallScore.toFixed(1)}/10\n\n` +
+        `Validation completed with score: ${validationData.overallScore.toFixed(1)}/100\n\n` +
         `Do you want to submit this content for review?\n\n` +
         `Note: The admin will see these validation results during review.`
       );
@@ -371,7 +371,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
             // Show validation results to user
             const shouldProceed = confirm(
-              `Assignment validation completed with score: ${validationData.overallScore.toFixed(1)}/10\n\n` +
+              `Assignment validation completed with score: ${validationData.overallScore.toFixed(1)}/100\n\n` +
               `Do you want to complete this assignment?\n\n` +
               `Note: The admin will see these validation results when reviewing your work.`
             );
