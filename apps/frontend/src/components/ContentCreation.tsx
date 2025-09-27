@@ -434,21 +434,22 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
   return (
     <div className={`min-h-screen bg-gray-50 ${isExpanded ? 'fixed inset-0 z-50' : ''}`}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2 md:gap-3">
           <button
             onClick={onBack}
             className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
           >
-            <span className="material-icons">arrow_back</span>
+            <span className="material-icons text-lg md:text-xl">arrow_back</span>
           </button>
-          <h2 className="text-xl font-bold text-gray-900">Content Validator</h2>
+          <h2 className="text-lg md:text-xl font-bold text-gray-900">Content Validator</h2>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
+          {/* Expand/Collapse Toggle - Hide on mobile */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            className="hidden md:block p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
             title={isExpanded ? "Collapse Editor" : "Expand Editor"}
           >
             <span className="material-icons">
@@ -460,7 +461,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
               {user.name.split(' ').map(n => n[0]).join('')}
             </span>
           </div>
-          <div className="text-right">
+          <div className="text-right hidden sm:block">
             <div className="text-sm font-medium text-gray-900">{user.name}</div>
             <div className="text-xs text-gray-500 capitalize">{user.role.toLowerCase()} Validator</div>
           </div>
@@ -468,15 +469,15 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
       </header>
 
       {/* Main Content */}
-      <main className="flex h-[calc(100vh-73px)]">
+      <main className="flex-1 min-h-0">
         {/* Main Editor Area */}
-        <div className="flex-1 flex flex-col">
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex flex-col h-full">
+          <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-4">
             <h2 className="text-lg font-semibold text-gray-900">Create New Content</h2>
           </div>
 
-          <div className="flex-1 p-6 overflow-auto">
-            <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex-1 p-4 md:p-6 overflow-auto">
+            <div className="max-w-7xl mx-auto space-y-6">
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -560,9 +561,9 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
               {/* Editor/Preview Split */}
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className={`flex ${isExpanded ? 'h-[calc(100vh-200px)]' : 'h-[500px]'}`}>
+                <div className={`flex flex-col md:flex-row ${isExpanded ? 'h-[calc(100vh-200px)]' : 'h-[600px] md:h-[500px]'}`}>
                   {/* Monaco Editor */}
-                  <div className="flex-1 flex flex-col">
+                  <div className="flex-1 flex flex-col min-h-[300px] md:min-h-0">
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-center">
                       <span className="text-sm font-medium text-gray-700">MARKDOWN EDITOR</span>
                     </div>
@@ -578,7 +579,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   </div>
 
                   {/* Preview */}
-                  <div className="flex-1 flex flex-col border-l border-gray-200 min-h-0">
+                  <div className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 min-h-[300px] md:min-h-0">
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-center">
                       <span className="text-sm font-medium text-gray-700">LIVE PREVIEW</span>
                     </div>
@@ -605,10 +606,10 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   onClick={onBack}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors w-full sm:w-auto"
                 >
                   {contentCreated ? 'Back to Dashboard' : 'Cancel'}
                 </button>
@@ -617,7 +618,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   <button
                     onClick={createContent}
                     disabled={!title.trim() || !content.trim() || isCreating}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors w-full sm:w-auto"
                   >
                     {isCreating ? 'Creating...' : (taskData?.existingContent ? 'Update Content' : (taskData ? 'Complete Assignment' : 'Create Content'))}
                   </button>
@@ -625,7 +626,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   <button
                     onClick={submitForReview}
                     disabled={isSubmitting}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300 transition-colors"
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300 transition-colors w-full sm:w-auto"
                   >
                     {isSubmitting ? 'Submitting...' : 'Submit for Review'}
                   </button>

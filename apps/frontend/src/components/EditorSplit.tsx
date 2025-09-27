@@ -60,11 +60,11 @@ export function EditorSplit({ value, onChange, issues = [] }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Editor Content - Always show split view like ContentCreation */}
+      {/* Editor Content - Mobile responsive split view */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="flex h-[400px]">
+        <div className="flex flex-col md:flex-row h-[600px] md:h-[400px]">
           {/* Editor Pane */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-[300px] md:min-h-0">
             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-center">
               <span className="text-sm font-medium text-gray-700">MARKDOWN EDITOR</span>
             </div>
@@ -83,7 +83,7 @@ export function EditorSplit({ value, onChange, issues = [] }: Props) {
           </div>
           
           {/* Preview Pane */}
-          <div ref={previewRef} className="flex-1 flex flex-col border-l border-gray-200 min-h-0">
+          <div ref={previewRef} className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 min-h-[300px] md:min-h-0">
             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-center">
               <span className="text-sm font-medium text-gray-700">LIVE PREVIEW</span>
             </div>

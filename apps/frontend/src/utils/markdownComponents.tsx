@@ -2,19 +2,19 @@ import React from 'react';
 
 // Custom components for react-markdown with better responsive design
 export const MarkdownComponents = {
-  // Headings with proper hierarchy
+  // Headings with proper hierarchy and mobile responsiveness
   h1: ({children, ...props}: any) => (
-    <h1 className="text-2xl font-bold text-gray-900 mb-4 mt-6 pb-2 border-b-2 border-blue-200" {...props}>
+    <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-3 md:mb-4 mt-4 md:mt-6 pb-2 border-b-2 border-blue-200" {...props}>
       {children}
     </h1>
   ),
   h2: ({children, ...props}: any) => (
-    <h2 className="text-xl font-semibold text-gray-800 mb-3 mt-5 px-3 py-2 bg-blue-50 rounded-lg border-l-4 border-blue-400" {...props}>
+    <h2 className="text-lg md:text-xl font-semibold text-gray-800 mb-2 md:mb-3 mt-4 md:mt-5 px-2 md:px-3 py-2 bg-blue-50 rounded-lg border-l-4 border-blue-400" {...props}>
       {children}
     </h2>
   ),
   h3: ({children, ...props}: any) => (
-    <h3 className="text-lg font-medium text-gray-700 mb-2 mt-4" {...props}>
+    <h3 className="text-base md:text-lg font-medium text-gray-700 mb-2 mt-3 md:mt-4" {...props}>
       {children}
     </h3>
   ),
