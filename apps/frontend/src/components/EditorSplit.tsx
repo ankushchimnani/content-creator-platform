@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 // Temporarily disable CodeMirror to resolve runtime issues
 // import { EditorView } from '@codemirror/view'
 // import { basicSetup } from '@codemirror/basic-setup'
@@ -18,7 +18,7 @@ type Props = {
   issues?: Issue[]
 }
 
-export function EditorSplit({ value, onChange, issues = [] }: Props) {
+export function EditorSplit({ value, onChange }: Props) {
   // const cmRef = useRef<HTMLDivElement | null>(null)
   // const [cmView, setCmView] = useState<EditorView | null>(null)
   const editorTextareaRef = useRef<HTMLTextAreaElement>(null)

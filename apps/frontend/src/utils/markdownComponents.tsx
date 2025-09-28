@@ -1,5 +1,3 @@
-import React from 'react';
-
 // Custom components for react-markdown with better responsive design
 export const MarkdownComponents = {
   // Headings with proper hierarchy and mobile responsiveness
