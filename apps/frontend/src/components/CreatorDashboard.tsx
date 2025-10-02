@@ -10,6 +10,16 @@ import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github.css';
 import { MarkdownComponents } from '../utils/markdownComponents';
 
+// Function to get sample reference URLs for different content types
+function getSampleReferenceUrl(contentType: string): string {
+  const sampleUrls = {
+    'ASSIGNMENT': 'https://peerabduljabbar.notion.site/How-to-create-assignments-26f8a9082226815ea660cfa8daa074eb',
+    'LECTURE_NOTE': 'https://peerabduljabbar.notion.site/Notes-Template-2798a908222680feaf41c7d794a040ea',
+    'PRE_READ': 'https://peerabduljabbar.notion.site/Pre-notes-Template-2798a908222680528079eb9b80a0849a'
+  };
+  return sampleUrls[contentType as keyof typeof sampleUrls] || sampleUrls.LECTURE_NOTE;
+}
+
 type User = {
   id: string;
   email: string;
@@ -26,7 +36,6 @@ type Content = {
   id: string;
   title: string;
   content: string;
-  brief?: string;
   status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'REJECTED';
   contentType: 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE';
   difficulty?: string;
@@ -57,7 +66,7 @@ type ValidateResponse = {
   processingTime?: number;
   assignmentContext?: {
     topic: string;
-    prerequisiteTopics: string[];
+    topicsTaughtSoFar: string[];
     hasGuidelines: boolean;
     guidelines?: string;
   } | null;
@@ -91,7 +100,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
   // Form state for new/edit content
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [brief, setBrief] = useState('');
   const [contentType, setContentType] = useState<'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('LECTURE_NOTE');
   const [difficulty, setDifficulty] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -134,7 +142,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
         body: JSON.stringify({
           title,
           content,
-          brief,
           contentType,
           difficulty: difficulty || undefined,
           tags,
@@ -190,7 +197,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
     }
   };
 
-  const updateContent = async (contentId: string, updatedData: { title: string; content: string; brief?: string; contentType?: string; difficulty?: string }) => {
+  const updateContent = async (contentId: string, updatedData: { title: string; content: string; contentType?: string; difficulty?: string }) => {
     try {
       const res = await apiCall(`/api/content/${contentId}`, {
         method: 'PUT',
@@ -236,7 +243,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
         body: JSON.stringify({
           content: selectedContent.content,
           options: {
-            brief: selectedContent.brief,
             contentId: selectedContent.id
           }
         })
@@ -260,7 +266,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
   const resetForm = () => {
     setTitle('');
     setContent('');
-    setBrief('');
     setContentType('LECTURE_NOTE');
     setDifficulty('');
     setTags([]);
@@ -288,13 +293,12 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
         topic: assignment.topic,
         contentType: assignment.contentType,
         guidelines: assignment.guidelines,
-        prerequisiteTopics: assignment.prerequisiteTopics,
+        topicsTaughtSoFar: assignment.topicsTaughtSoFar,
         // Include existing content data for revision
         existingContent: assignment.content ? {
           id: assignment.content.id,
           title: assignment.content.title,
           content: assignment.content.content || '',
-          brief: assignment.content.brief || '',
           reviewFeedback: assignment.content.reviewFeedback || ''
         } : null
       };
@@ -352,7 +356,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
 
           {/* User Info */}
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="text-right hidden lg:block"><p className="text-sm font-medium">Welcome, {user.name}</p></div>
+            <div className="text-left hidden lg:block"><p className="text-sm font-medium">Welcome, {user.name}</p></div>
             <button 
               onClick={() => setActiveTab('settings')}
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
@@ -408,7 +412,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                     </button>
-                    <div className="text-xs text-gray-500 text-center">
+                    <div className="text-xs text-gray-500 text-left">
                       {contents.length} items
                     </div>
                   </div>
@@ -545,7 +549,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                       {contents.filter(content => 
                         contentTypeFilter === 'ALL' || content.contentType === contentTypeFilter
                       ).length === 0 && (
-                        <div className="text-center py-12 text-gray-500">
+                        <div className="text-left py-12 text-gray-500">
                           <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
@@ -589,15 +593,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-text-light mb-2">Brief/Requirements</label>
-                    <textarea
-                      value={brief}
-                      onChange={(e) => setBrief(e.target.value)}
-                      className="w-full h-24 px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                      placeholder="Describe the content requirements and objectives..."
-                    />
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -629,6 +624,39 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                       </div>
                     )}
                   </div>
+
+                  {/* Sample Reference Links - Only for Content Creators */}
+                  {user.role === 'CREATOR' && (
+                    <div>
+                      <label className="block text-sm font-medium text-text-light mb-2">
+                        Sample Reference
+                      </label>
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-blue-800 mb-1">Need inspiration?</p>
+                            <p className="text-sm text-blue-700 mb-2">
+                              Check out this sample {contentType.replace('_', ' ').toLowerCase()} to understand the expected format and structure:
+                            </p>
+                            <a
+                              href={getSampleReferenceUrl(contentType)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              View Sample {contentType.replace('_', ' ')}
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-text-light mb-2">Content</label>
@@ -701,14 +729,13 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                         <span>v{selectedContent.version}</span>
                       </div>
                     </div>
-                    <div className="col-span-1 text-right">
+                    <div className="col-span-1 text-left">
                       {selectedContent.status === 'REJECTED' && !editingContent ? (
                         <button
                           onClick={() => {
                             setEditingContent(selectedContent);
                             setTitle(selectedContent.title);
                             setContent(selectedContent.content);
-                            setBrief(selectedContent.brief || '');
                             setContentType(selectedContent.contentType);
                             setDifficulty(selectedContent.difficulty || '');
                           }}
@@ -793,15 +820,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-text-light mb-2">Brief (Optional)</label>
-                        <textarea
-                          value={brief}
-                          onChange={(e) => setBrief(e.target.value)}
-                          rows={3}
-                          className="w-full px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                        />
-                      </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -848,7 +866,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                           Cancel
                         </button>
                         <button
-                          onClick={() => updateContent(selectedContent.id, { title, content, brief, contentType, difficulty })}
+                          onClick={() => updateContent(selectedContent.id, { title, content, contentType, difficulty })}
                           disabled={!title.trim() || !content.trim()}
                           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300"
                         >
@@ -859,12 +877,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                   ) : (
                     // Read-only content summary
                     <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-                      {selectedContent.brief && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md flex-shrink-0">
-                          <h3 className="text-sm font-medium text-blue-900 mb-1">Brief</h3>
-                          <p className="text-xs text-blue-900">{selectedContent.brief}</p>
-                        </div>
-                      )}
                       <div className="bg-white border border-gray-200 rounded-lg flex-1 overflow-auto min-h-0">
                         <div className="p-4 text-left max-w-none">
                           <ReactMarkdown
@@ -881,7 +893,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                 </div>
               ) : (
                 // Empty State - No Content Selected  
-                <div className="text-center">
+                <div className="text-left">
                   <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-gray-100 mb-4">
                     <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

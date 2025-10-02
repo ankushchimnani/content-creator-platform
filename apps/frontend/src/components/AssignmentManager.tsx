@@ -11,7 +11,7 @@ type User = {
 type Assignment = {
   id: string;
   topic: string;
-  prerequisiteTopics: string[];
+  topicsTaughtSoFar: string[];
   guidelines?: string;
   contentType: 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE';
   difficulty?: string;
@@ -56,13 +56,13 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   // Form state
   const [topic, setTopic] = useState('');
-  const [prerequisiteTopics, setPrerequisiteTopics] = useState<string[]>([]);
+  const [topicsTaughtSoFar, setTopicsTaughtSoFar] = useState<string[]>([]);
   const [guidelines, setGuidelines] = useState('');
   const [contentType, setContentType] = useState('LECTURE_NOTE');
   const [difficulty, setDifficulty] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToId, setAssignedToId] = useState('');
-  const [prerequisiteInput, setPrerequisiteInput] = useState('');
+  const [topicsTaughtSoFarInput, setTopicsTaughtSoFarInput] = useState('');
 
   useEffect(() => {
     fetchAssignments();
@@ -94,19 +94,43 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const fetchAssignedCreators = async () => {
     try {
+      console.log('🔍 DEBUG: Fetching creators for admin:', user.id);
+      console.log('🔍 DEBUG: User object:', user);
+      console.log('🔍 DEBUG: Token:', token ? 'Present' : 'Missing');
+      
       const res = await apiCall('/api/admin/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('🔍 DEBUG: API response:', data);
+        console.log('🔍 DEBUG: All users count:', data.users?.length || 0);
+        
         // Filter to only show creators assigned to this admin
-        const creators = data.users.filter((u: any) => 
-          u.role === 'CREATOR' && u.assignedAdminId === user.id
-        );
+        const creators = data.users.filter((u: any) => {
+          const isCreator = u.role === 'CREATOR';
+          const isAssigned = u.assignedAdminId === user.id;
+          console.log(`🔍 DEBUG: User ${u.email} - Role: ${u.role}, AssignedTo: ${u.assignedAdminId}, Match: ${isCreator && isAssigned}`);
+          return isCreator && isAssigned;
+        });
+        
+        console.log('🔍 DEBUG: Filtered creators count:', creators.length);
+        console.log('🔍 DEBUG: Filtered creators:', creators);
+        console.log('🔍 DEBUG: Admin ID for comparison:', user.id);
+        
         setAssignedCreators(creators);
+        
+        if (creators.length === 0) {
+          console.warn('⚠️  WARNING: No creators found for admin. Check admin-creator assignments in database.');
+        }
+      } else {
+        console.error('❌ API call failed with status:', res.status);
+        const errorData = await res.json().catch(() => ({ error: 'Failed to parse error response' }));
+        console.error('❌ Error response:', errorData);
       }
     } catch (error) {
-      console.error('Failed to fetch creators:', error);
+      console.error('❌ Failed to fetch creators:', error);
     }
   };
 
@@ -120,7 +144,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
         },
         body: JSON.stringify({
           topic,
-          prerequisiteTopics,
+          topicsTaughtSoFar,
           guidelines: guidelines || undefined,
           contentType,
           difficulty: difficulty || undefined,
@@ -155,7 +179,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
         },
         body: JSON.stringify({
           topic,
-          prerequisiteTopics,
+          topicsTaughtSoFar,
           guidelines: guidelines || undefined,
           contentType,
           difficulty: difficulty || undefined,
@@ -181,13 +205,13 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
   const resetForm = () => {
     setTopic('');
-    setPrerequisiteTopics([]);
+    setTopicsTaughtSoFar([]);
     setGuidelines('');
     setContentType('LECTURE_NOTE');
     setDifficulty('');
     setDueDate('');
     setAssignedToId('');
-    setPrerequisiteInput('');
+    setTopicsTaughtSoFarInput('');
   };
 
   const startCreating = () => {
@@ -196,16 +220,16 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
     resetForm();
   };
 
-  const addPrerequisite = () => {
-    if (prerequisiteInput.trim()) {
-      const topics = prerequisiteInput.split(',').map(t => t.trim()).filter(Boolean);
-      setPrerequisiteTopics([...prerequisiteTopics, ...topics]);
-      setPrerequisiteInput('');
+  const addTopicTaughtSoFar = () => {
+    if (topicsTaughtSoFarInput.trim()) {
+      const topics = topicsTaughtSoFarInput.split(',').map(t => t.trim()).filter(Boolean);
+      setTopicsTaughtSoFar([...topicsTaughtSoFar, ...topics]);
+      setTopicsTaughtSoFarInput('');
     }
   };
 
-  const removePrerequisite = (index: number) => {
-    setPrerequisiteTopics(prerequisiteTopics.filter((_, i) => i !== index));
+  const removeTopicTaughtSoFar = (index: number) => {
+    setTopicsTaughtSoFar(topicsTaughtSoFar.filter((_, i) => i !== index));
   };
 
   const getStatusColor = (status: string) => {
@@ -385,13 +409,19 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                 className="w-full px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={!!editingAssignment}
               >
-                <option value="">Select a creator...</option>
+                <option value="">Select a creator... ({assignedCreators.length} available)</option>
                 {assignedCreators.map((creator) => (
                   <option key={creator.id} value={creator.id}>
                     {creator.name} ({creator.email})
                   </option>
                 ))}
               </select>
+              {/* Debug info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-2 text-xs text-gray-500">
+                  🔍 DEBUG: {assignedCreators.length} creators loaded for admin {user.id}
+                </div>
+              )}
             </div>
 
             <div>
@@ -434,23 +464,23 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
-                  value={prerequisiteInput}
-                  onChange={(e) => setPrerequisiteInput(e.target.value)}
+                  value={topicsTaughtSoFarInput}
+                  onChange={(e) => setTopicsTaughtSoFarInput(e.target.value)}
                   className="flex-1 px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="Enter topics separated by commas"
-                  onKeyPress={(e) => e.key === 'Enter' && addPrerequisite()}
+                  onKeyPress={(e) => e.key === 'Enter' && addTopicTaughtSoFar()}
                 />
                 <button
                   type="button"
-                  onClick={addPrerequisite}
+                  onClick={addTopicTaughtSoFar}
                   className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
                 >
                   Add
                 </button>
               </div>
-              {prerequisiteTopics.length > 0 && (
+              {topicsTaughtSoFar.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {prerequisiteTopics.map((topic, index) => (
+                  {topicsTaughtSoFar.map((topic, index) => (
                     <span
                       key={index}
                       className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm flex items-center gap-1"
@@ -458,7 +488,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                       {topic}
                       <button
                         type="button"
-                        onClick={() => removePrerequisite(index)}
+                        onClick={() => removeTopicTaughtSoFar(index)}
                         className="text-purple-800 hover:opacity-80"
                       >
                         ×
@@ -603,12 +633,12 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                     )}
                   </div>
 
-                  {/* Prerequisites */}
-                  {assignment.prerequisiteTopics.length > 0 && (
+                  {/* Topics Taught So Far */}
+                  {assignment.topicsTaughtSoFar.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Prerequisites</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Topics Taught So Far</h4>
                       <div className="flex flex-wrap gap-2">
-                        {assignment.prerequisiteTopics.map((topic, index) => (
+                        {assignment.topicsTaughtSoFar.map((topic, index) => (
                           <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                             {topic}
                           </span>
@@ -741,7 +771,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
           ))}
 
           {filteredTasks.length === 0 && (
-            <div className="p-12 text-center">
+            <div className="p-12 text-left">
               <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>

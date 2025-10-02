@@ -80,7 +80,7 @@ export function Settings({ user, token, onBack }: Props) {
               {currentUser.name.split(' ').map(n => n[0]).join('')}
             </span>
           </div>
-          <div className="text-right">
+          <div className="text-left">
             <div className="text-sm font-medium text-gray-900">{currentUser.name}</div>
             <div className="text-xs text-gray-500 capitalize">{currentUser.role.toLowerCase()} Validator</div>
           </div>

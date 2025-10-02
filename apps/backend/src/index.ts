@@ -10,6 +10,7 @@ import { validateRouter } from './routes/validate';
 import contentRouter from './routes/content';
 import adminRouter from './routes/admin';
 import { assignmentsRouter } from './routes/assignments';
+import { superAdminRouter } from './routes/super-admin';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -37,6 +38,7 @@ app.use('/api/validate', validateRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/assignments', assignmentsRouter);
+app.use('/api/super-admin', superAdminRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
 app.listen(port, '0.0.0.0', () => {

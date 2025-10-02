@@ -10,7 +10,6 @@ export const contentRouter = Router();
 const createContentSchema = z.object({
   title: z.string().min(1).max(200),
   content: z.string().min(1),
-  brief: z.string().optional(),
   tags: z.array(z.string()).default([]),
   category: z.string().optional(),
 });
@@ -85,7 +84,7 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
 
-    const { title, content, brief, tags, category } = parsed.data;
+    const { title, content, tags, category } = parsed.data;
     const user = req.user!;
 
     const wordCount = countWords(content);
@@ -95,7 +94,6 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
       data: {
         title,
         content,
-        brief: brief || null,
         tags,
         category: category || null,
         wordCount,

@@ -19,12 +19,11 @@ type TaskData = {
   topic: string;
   contentType: string;
   guidelines?: string;
-  prerequisiteTopics: string[];
+  topicsTaughtSoFar: string[];
   existingContent?: {
     id: string;
     title: string;
     content: string;
-    brief: string;
     reviewFeedback?: string;
   };
 };
@@ -35,13 +34,15 @@ type ValidationResult = {
     continuity: { score: number; confidence: number; feedback: string; issues: any[] };
     documentation: { score: number; confidence: number; feedback: string; issues: any[] };
   };
-  providers: string[];
-  overallScore: number;
-  overallConfidence: number;
+  providers?: string[];
+  overallScore?: number;
+  overall?: number; // New dual LLM format
+  overallConfidence?: number;
+  confidence?: number; // New dual LLM format
   processingTime: number;
   assignmentContext?: {
     topic: string;
-    prerequisiteTopics: string[];
+    topicsTaughtSoFar: string[];
     hasGuidelines: boolean;
   };
 };
@@ -53,10 +54,19 @@ type Props = {
   taskData?: TaskData;
 };
 
+// Function to get sample reference URLs for different content types
+function getSampleReferenceUrl(contentType: string): string {
+  const sampleUrls = {
+    'ASSIGNMENT': 'https://peerabduljabbar.notion.site/How-to-create-assignments-26f8a9082226815ea660cfa8daa074eb',
+    'LECTURE_NOTE': 'https://peerabduljabbar.notion.site/Notes-Template-2798a908222680feaf41c7d794a040ea',
+    'PRE_READ': 'https://peerabduljabbar.notion.site/Pre-notes-Template-2798a908222680528079eb9b80a0849a'
+  };
+  return sampleUrls[contentType as keyof typeof sampleUrls] || sampleUrls.LECTURE_NOTE;
+}
+
 export function ContentCreation({ user, token, onBack, taskData }: Props) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [brief, setBrief] = useState('');
   const [contentType, setContentType] = useState('LECTURE_NOTE');
   const [isCreating, setIsCreating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -76,13 +86,11 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         // Pre-fill with existing content for revision
         setTitle(taskData.existingContent.title);
         setContent(taskData.existingContent.content);
-        setBrief(taskData.existingContent.brief);
         setContentType(taskData.contentType);
         setContentId(taskData.existingContent.id);
       } else {
         // Create new content
         setTitle(`${taskData.contentType.replace('_', ' ')}: ${taskData.topic}`);
-        setBrief(taskData.guidelines || '');
         setContentType(taskData.contentType);
       }
     }
@@ -175,7 +183,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         },
         body: JSON.stringify({
           content,
-          brief: brief || undefined,
           contentId: contentId || undefined
         })
       });
@@ -219,11 +226,10 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         body: JSON.stringify({
           content: content,
           title: title,
-          brief: brief,
           contentType: contentType,
           assignmentContext: taskData ? {
             topic: taskData.topic,
-            prerequisiteTopics: taskData.prerequisiteTopics,
+            topicsTaughtSoFar: taskData.topicsTaughtSoFar,
             hasGuidelines: !!taskData.guidelines
           } : undefined
         })
@@ -241,8 +247,9 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
       setIsValidating(false);
 
       // Show validation results to user before submission
+      const overallScore = validationData.overallScore || validationData.overall || 0;
       const shouldProceed = confirm(
-        `Validation completed with score: ${validationData.overallScore.toFixed(1)}/100\n\n` +
+        `Validation completed with score: ${overallScore.toFixed(1)}/100\n\n` +
         `Do you want to submit this content for review?\n\n` +
         `Note: The admin will see these validation results during review.`
       );
@@ -303,7 +310,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
           body: JSON.stringify({
             title,
             content,
-            brief: brief || undefined,
             contentType: contentType as 'LECTURE_NOTE' | 'PRE_READ' | 'ASSIGNMENT',
             tags: [],
             category: undefined
@@ -320,7 +326,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
           body: JSON.stringify({
             title,
             content,
-            brief: brief || undefined,
             contentType: contentType as 'LECTURE_NOTE' | 'PRE_READ' | 'ASSIGNMENT',
             tags: [],
             category: undefined
@@ -335,53 +340,9 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         // Link content to assignment if taskData exists and it's not a revision
         if (taskData?.taskId && !taskData?.existingContent) {
           try {
-            // First run LLM validation for assignment content
-            console.log('Running LLM validation for assignment content...');
-            setIsValidating(true);
+            // Simply link content to assignment without validation
+            console.log('Linking content to assignment...');
             
-            const validationRes = await apiCall('/api/validate', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                content: content,
-                title: title,
-                brief: brief,
-                contentType: contentType,
-                assignmentContext: {
-                  topic: taskData.topic,
-                  prerequisiteTopics: taskData.prerequisiteTopics,
-                  hasGuidelines: !!taskData.guidelines
-                }
-              })
-            });
-
-            if (!validationRes.ok) {
-              const error = await validationRes.json();
-              alert(`Validation failed: ${error.error || 'Unknown error'}`);
-              setIsValidating(false);
-              return;
-            }
-
-            const validationData = await validationRes.json();
-            setValidationResult(validationData);
-            setIsValidating(false);
-
-            // Show validation results to user
-            const shouldProceed = confirm(
-              `Assignment validation completed with score: ${validationData.overallScore.toFixed(1)}/100\n\n` +
-              `Do you want to complete this assignment?\n\n` +
-              `Note: The admin will see these validation results when reviewing your work.`
-            );
-
-            if (!shouldProceed) {
-              setIsCreating(false);
-              return;
-            }
-
-            // Now link content to assignment with validation data
             const linkRes = await apiCall(`/api/assignments/${taskData.taskId}/link-content`, {
               method: 'POST',
               headers: { 
@@ -389,14 +350,14 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 Authorization: `Bearer ${token}` 
               },
               body: JSON.stringify({ 
-                contentId: data.content.id,
-                validationData: validationData // Include validation results
+                contentId: data.content.id
+                // No validation data - validation happens only on submit for review
               })
             });
             
             if (linkRes.ok) {
               // For assignments, content is automatically completed when linked
-              alert('Assignment completed successfully! The admin will see the validation results.');
+              alert('Assignment completed successfully! You can now submit the content for review if needed.');
               setContentCreated(true); // Enable Submit for Review button
               return;
             } else {
@@ -405,7 +366,9 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
             }
           } catch (error) {
             console.error('Failed to complete assignment:', error);
-            alert('Content created but failed to complete assignment');
+            console.error('Error details:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            alert(`Content created but failed to complete assignment: ${errorMessage}`);
           }
         }
         
@@ -461,7 +424,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
               {user.name.split(' ').map(n => n[0]).join('')}
             </span>
           </div>
-          <div className="text-right hidden sm:block">
+          <div className="text-left hidden sm:block">
             <div className="text-sm font-medium text-gray-900">{user.name}</div>
             <div className="text-xs text-gray-500 capitalize">{user.role.toLowerCase()} Validator</div>
           </div>
@@ -492,18 +455,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 />
               </div>
 
-              {/* Brief/Requirements */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Brief/Requirements
-                </label>
-                <textarea
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
-                  className="w-full h-24 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  placeholder="Describe the content requirements and objectives..."
-                />
-              </div>
 
               {/* Rejection Feedback - Only show when revising rejected content */}
               {taskData?.existingContent?.reviewFeedback && (
@@ -543,6 +494,39 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 </select>
               </div>
 
+              {/* Sample Reference Links - Only for Content Creators */}
+              {user.role === 'CREATOR' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sample Reference
+                  </label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800 mb-1">Need inspiration?</p>
+                        <p className="text-sm text-blue-700 mb-2">
+                          Check out this sample {contentType.replace('_', ' ').toLowerCase()} to understand the expected format and structure:
+                        </p>
+                        <a
+                          href={getSampleReferenceUrl(contentType)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          View Sample {contentType.replace('_', ' ')}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Success Message */}
               {contentCreated && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -564,7 +548,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                 <div className={`flex flex-col md:flex-row ${isExpanded ? 'h-[calc(100vh-200px)]' : 'h-[600px] md:h-[500px]'}`}>
                   {/* Monaco Editor */}
                   <div className="flex-1 flex flex-col min-h-[300px] md:min-h-0">
-                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-center">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-left">
                       <span className="text-sm font-medium text-gray-700">MARKDOWN EDITOR</span>
                     </div>
                     <div 
@@ -580,7 +564,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
 
                   {/* Preview */}
                   <div className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 min-h-[300px] md:min-h-0">
-                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-center">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-left">
                       <span className="text-sm font-medium text-gray-700">LIVE PREVIEW</span>
                     </div>
                     <div className="flex-1 overflow-auto bg-white min-h-0">
@@ -595,7 +579,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <div className="text-gray-500 text-center py-8">
+                        <div className="text-gray-500 text-left py-8">
                           <div className="text-lg mb-2">Start writing...</div>
                           <div className="text-sm">Your formatted content will appear here as you type.</div>
                         </div>
@@ -656,7 +640,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Validation Dashboard</h3>
               
               {!validationResult ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-left">
                   <span className="material-icons text-gray-400 text-5xl mb-3">check_circle</span>
                   <p className="text-gray-600">
                     Validation results will appear here.
@@ -670,13 +654,13 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                       <span className="material-icons text-green-600 text-2xl">check_circle</span>
                       <div>
                         <h4 className="font-semibold text-green-900">Validation Complete</h4>
-                        <p className="text-sm text-green-700">Overall Score: <span className="font-bold text-xl">{validationResult.overallScore}/100</span></p>
+                        <p className="text-sm text-green-700">Overall Score: <span className="font-bold text-xl">{validationResult.overallScore || validationResult.overall || 0}/100</span></p>
                       </div>
                     </div>
                     <div className="text-xs text-green-700 space-y-1">
-                      <div>Confidence: {validationResult.overallConfidence}%</div>
+                      <div>Confidence: {validationResult.overallConfidence || validationResult.confidence || 0}%</div>
                       <div>Processing Time: {validationResult.processingTime}ms</div>
-                      <div>Providers: {validationResult.providers.join(', ')}</div>
+                      <div>Providers: {validationResult.providers?.join(', ') || 'Dual LLM'}</div>
                     </div>
                   </div>
 

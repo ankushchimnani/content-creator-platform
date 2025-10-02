@@ -17,6 +17,7 @@ enum Role {
   CREATOR
   REVIEWER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum ContentStatus {
@@ -64,13 +65,17 @@ model User {
   // Assignment relations
   createdAssignments ContentAssignment[] @relation("AssignmentCreatedBy")
   assignedTasks      ContentAssignment[] @relation("AssignmentAssignedTo")
+  
+  // Super admin relations
+  createdPrompts     PromptTemplate[]    @relation("PromptCreatedBy")
+  createdLLMConfigs  LLMConfiguration[]  @relation("LLMConfigCreatedBy")
+  createdGuidelines  GuidelinesTemplate[] @relation("GuidelinesCreatedBy")
 }
 
 model Content {
   id              String            @id @default(cuid())
   title           String
   content         String            @db.Text
-  brief           String?           @db.Text // Topics/requirements for validation
   status          ContentStatus     @default(DRAFT)
   contentType     ContentType       @default(LECTURE_NOTE)
 
@@ -169,7 +174,7 @@ model UserSession {
 model ContentAssignment {
   id              String      @id @default(cuid())
   topic           String      // Topic to be delivered
-  prerequisiteTopics String[] // Topics taught till that point
+  topicsTaughtSoFar String[] // Topics taught till that point
   guidelines      String?     @db.Text // Optional guidelines
   contentType     ContentType @default(LECTURE_NOTE) // Type of content to create
   difficulty      String?     // For ASSIGNMENT type: EASY, MEDIUM, HARD
@@ -198,4 +203,51 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user       User?    @relation(fields: [userId], references: [id])
+}
+
+model PromptTemplate {
+  id          String      @id @default(cuid())
+  name        String      @unique // ASSIGNMENT, LECTURE_NOTE, PRE_READ
+  contentType ContentType
+  prompt      String      @db.Text
+  version     Int         @default(1)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  createdById String
+  createdBy   User        @relation("PromptCreatedBy", fields: [createdById], references: [id])
+}
+
+model LLMConfiguration {
+  id           String      @id @default(cuid())
+  provider     LLMProvider
+  modelName    String      // gpt-4o-mini, gemini-pro, etc.
+  isActive     Boolean     @default(true)
+  priority     Int         @default(1) // For ordering multiple models
+  temperature  Float       @default(0.0)
+  maxTokens    Int?
+  apiEndpoint  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  
+  // Relations
+  createdById String
+  createdBy   User        @relation("LLMConfigCreatedBy", fields: [createdById], references: [id])
+}
+
+model GuidelinesTemplate {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  contentType ContentType
+  guidelines  String      @db.Text
+  version     Int         @default(1)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  createdById String
+  createdBy   User        @relation("GuidelinesCreatedBy", fields: [createdById], references: [id])
 }

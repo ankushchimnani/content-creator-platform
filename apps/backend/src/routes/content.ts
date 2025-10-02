@@ -9,7 +9,6 @@ export const contentRouter = Router();
 const createContentSchema = z.object({
   title: z.string().min(1).max(200),
   content: z.string().min(1),
-  brief: z.string().optional(),
   tags: z.array(z.string()).default([]),
   category: z.string().optional(),
   contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).default('LECTURE_NOTE'),
@@ -19,7 +18,6 @@ const createContentSchema = z.object({
 const updateContentSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().min(1).optional(),
-  brief: z.string().optional(),
   tags: z.array(z.string()).optional(),
   category: z.string().optional(),
   contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).optional(),
@@ -123,7 +121,8 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
             select: { id: true, name: true, email: true }
           },
           validationResults: {
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take: 1 // Get only the most recent validation result
           }
         }
       });
@@ -142,7 +141,8 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
             select: { id: true, name: true, email: true }
           },
           validationResults: {
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take: 1 // Get only the most recent validation result
           }
         }
       });
@@ -167,7 +167,7 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
 
-    const { title, content, brief, tags, category, contentType, difficulty } = parsed.data;
+    const { title, content, tags, category, contentType, difficulty } = parsed.data;
     const user = req.user!;
 
     const wordCount = countWords(content);
@@ -179,7 +179,6 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
         data: {
           title,
           content,
-          brief: brief || null,
           tags,
           category: category || null,
           contentType: contentType as any,
@@ -296,10 +295,10 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req,
         await tx.validationResult.create({
           data: {
             contentId: contentId,
-            llmProvider: 'OPENAI', // Default provider
-            modelVersion: 'gpt-4',
+            llmProvider: 'OPENAI', // Use valid enum value (represents dual validation)
+            modelVersion: 'gpt-4-gemini-2.5-flash-lite',
             criteria: validationData.criteria,
-            overallScore: validationData.overallScore,
+            overallScore: validationData.overallScore || validationData.overall, // Handle both field names
             processingTimeMs: validationData.processingTime || 0
           }
         });
@@ -443,7 +442,7 @@ contentRouter.put('/:id', requireAuth, requireRole(['CREATOR']), async (req: Req
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
 
-    const { title, content, brief, contentType, difficulty } = parsed.data;
+    const { title, content, contentType, difficulty } = parsed.data;
 
     // Check if content exists and belongs to user
     const existingContent = await prisma.content.findUnique({
@@ -471,7 +470,6 @@ contentRouter.put('/:id', requireAuth, requireRole(['CREATOR']), async (req: Req
       data: {
         ...(title && { title }),
         ...(content && { content, wordCount, readingTime }),
-        ...(brief !== undefined && { brief: brief || null }),
         ...(contentType && { contentType }),
         ...(difficulty !== undefined && { difficulty: difficulty || null }),
         status: 'DRAFT', // Reset to draft when editing

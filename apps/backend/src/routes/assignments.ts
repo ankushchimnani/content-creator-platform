@@ -9,7 +9,7 @@ export const assignmentsRouter = Router();
 // Validation schemas
 const createAssignmentSchema = z.object({
   topic: z.string().min(1).max(200),
-  prerequisiteTopics: z.array(z.string()).default([]),
+  topicsTaughtSoFar: z.array(z.string()).default([]),
   guidelines: z.string().optional(),
   contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).default('LECTURE_NOTE'),
   difficulty: z.string().optional(), // For ASSIGNMENT type
@@ -19,7 +19,7 @@ const createAssignmentSchema = z.object({
 
 const updateAssignmentSchema = z.object({
   topic: z.string().min(1).max(200).optional(),
-  prerequisiteTopics: z.array(z.string()).optional(),
+  topicsTaughtSoFar: z.array(z.string()).optional(),
   guidelines: z.string().optional(),
   contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).optional(),
   difficulty: z.string().optional(), // For ASSIGNMENT type
@@ -64,7 +64,8 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
     
     const allContent = await prisma.content.findMany({
       where: {
-        authorId: { in: creatorIds }
+        authorId: { in: creatorIds },
+        status: { not: 'DRAFT' } // Only show submitted content to admins
       },
       include: {
         author: {
@@ -86,7 +87,7 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
     const virtualAssignments = unlinkedContent.map((content: any) => ({
       id: `virtual-${content.id}`,
       topic: content.title,
-      prerequisiteTopics: [],
+      topicsTaughtSoFar: [],
       guidelines: null,
       contentType: 'LECTURE_NOTE' as const,
       difficulty: null,
@@ -158,7 +159,7 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
 
-    const { topic, prerequisiteTopics, guidelines, contentType, difficulty, dueDate, assignedToId } = parsed.data;
+    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, assignedToId } = parsed.data;
     const adminId = req.user!.id;
 
     // Verify the assigned user exists and is a creator assigned to this admin
@@ -185,7 +186,7 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       const assignment = await (tx as any).contentAssignment.create({
         data: {
           topic,
-          prerequisiteTopics,
+          topicsTaughtSoFar,
           guidelines: guidelines || null,
           contentType,
           difficulty: difficulty || null,
@@ -261,7 +262,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { topic, prerequisiteTopics, guidelines, contentType, difficulty, dueDate, status } = parsed.data;
+    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, status } = parsed.data;
     
     // Wrap assignment update and audit logging in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -269,7 +270,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
         where: { id: assignmentId as string },
         data: {
           ...(topic && { topic }),
-          ...(prerequisiteTopics && { prerequisiteTopics }),
+          ...(topicsTaughtSoFar && { topicsTaughtSoFar }),
           ...(guidelines !== undefined && { guidelines: guidelines || null }),
           ...(contentType && { contentType }),
           ...(difficulty !== undefined && { difficulty: difficulty || null }),
@@ -470,10 +471,10 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
         await tx.validationResult.create({
           data: {
             contentId: contentId,
-            llmProvider: 'OPENAI', // Default provider
-            modelVersion: 'gpt-4',
+            llmProvider: 'OPENAI', // Use valid enum value (represents dual validation)
+            modelVersion: 'gpt-4-gemini-2.5-flash-lite',
             criteria: validationData.criteria,
-            overallScore: validationData.overallScore,
+            overallScore: validationData.overallScore || validationData.overall, // Handle both field names
             processingTimeMs: validationData.processingTime || 0
           }
         });

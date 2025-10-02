@@ -11,7 +11,7 @@ type User = {
 type Assignment = {
   id: string;
   topic: string;
-  prerequisiteTopics: string[];
+  topicsTaughtSoFar: string[];
   guidelines?: string;
   contentType: 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE';
   difficulty?: string;
@@ -32,7 +32,6 @@ type Assignment = {
     updatedAt: string;
     reviewFeedback?: string;
     content?: string;
-    brief?: string;
   };
 };
 
@@ -250,7 +249,7 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         ) : filteredAssignments.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-left py-12">
             <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
@@ -320,12 +319,12 @@ export function AssignmentTasks({ token, onCreateContent }: Props) {
                     </div>
                   </div>
 
-                  {/* Prerequisites */}
-                  {assignment.prerequisiteTopics.length > 0 && (
+                  {/* Topics Taught So Far */}
+                  {assignment.topicsTaughtSoFar.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Topics taught so far</h4>
                       <div className="flex flex-wrap gap-2">
-                        {assignment.prerequisiteTopics.map((topic, index) => (
+                        {assignment.topicsTaughtSoFar.map((topic, index) => (
                           <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                             {topic}
                           </span>

@@ -33,7 +33,6 @@ type Content = {
   id: string;
   title: string;
   content: string;
-  brief?: string;
   status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'REJECTED';
   tags: string[];
   category?: string;
@@ -272,7 +271,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
 
           {/* User Info */}
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="text-right hidden lg:block">
+            <div className="text-left hidden lg:block">
               <div className="text-sm font-medium text-text-light">Welcome, {user.name}</div>
               <div className="text-xs text-gray-500">Admin</div>
             </div>
@@ -349,7 +348,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
             
             <div className="p-6">
               {assignedCreators.length === 0 ? (
-                <div className="text-center py-12">
+                <div className="text-left py-12">
                   <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
@@ -604,7 +603,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                 ))}
                 
                 {reviewQueue.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-left py-8 text-gray-500">
                     <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -633,12 +632,6 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                     </div>
                   </div>
 
-                  {selectedContent.brief && (
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <h3 className="font-medium text-blue-900 mb-2">Content Brief</h3>
-                      <p className="text-blue-800 text-sm">{selectedContent.brief}</p>
-                    </div>
-                  )}
                 </div>
                 
                 <div className="p-6">
@@ -663,59 +656,63 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                     </div>
                   </div>
 
-                  {/* LLM Validation Results */}
+                  {/* LLM Validation Results - Show only the most recent result */}
                   {selectedContent.validationResults && selectedContent.validationResults.length > 0 && (
                     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <h3 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
-                        AI Validation Results
+                        AI Validation Results (Most Recent)
                       </h3>
-                      {selectedContent.validationResults.map((result, index) => (
-                        <div key={index} className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-blue-800">
-                              Overall Score: {result.overallScore.toFixed(1)}/100
-                            </span>
-                            <span className="text-xs text-blue-600">
-                              {result.llmProvider} • {result.modelVersion}
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="p-3 bg-white rounded border border-blue-100">
-                              <div className="text-sm font-medium text-gray-700 mb-1">Adherence to Structure</div>
-                              <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.relevance?.score ?? 0).toFixed(1)}/100
-                              </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria?.relevance?.feedback || 'No feedback available'}
-                              </div>
+                      {(() => {
+                        // Get the most recent validation result (first in the array since they're ordered by createdAt desc)
+                        const mostRecentResult = selectedContent.validationResults[0];
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-blue-800">
+                                Overall Score: {mostRecentResult.overallScore.toFixed(1)}/100
+                              </span>
+                              <span className="text-xs text-blue-600">
+                                {mostRecentResult.llmProvider} • {mostRecentResult.modelVersion}
+                              </span>
                             </div>
                             
-                            <div className="p-3 bg-white rounded border border-blue-100">
-                              <div className="text-sm font-medium text-gray-700 mb-1">Coverage of Topics</div>
-                              <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.continuity?.score ?? 0).toFixed(1)}/100
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div className="p-3 bg-white rounded border border-blue-100">
+                                <div className="text-sm font-medium text-gray-700 mb-1">Adherence to Structure</div>
+                                <div className="text-lg font-semibold text-blue-600">
+                                  {(mostRecentResult.criteria?.relevance?.score ?? 0).toFixed(1)}/100
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {mostRecentResult.criteria?.relevance?.feedback || 'No feedback available'}
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria?.continuity?.feedback || 'No feedback available'}
+                              
+                              <div className="p-3 bg-white rounded border border-blue-100">
+                                <div className="text-sm font-medium text-gray-700 mb-1">Coverage of Topics</div>
+                                <div className="text-lg font-semibold text-blue-600">
+                                  {(mostRecentResult.criteria?.continuity?.score ?? 0).toFixed(1)}/100
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {mostRecentResult.criteria?.continuity?.feedback || 'No feedback available'}
+                                </div>
                               </div>
-                            </div>
-                            
-                            <div className="p-3 bg-white rounded border border-blue-100">
-                              <div className="text-sm font-medium text-gray-700 mb-1">Ease of Understanding</div>
-                              <div className="text-lg font-semibold text-blue-600">
-                                {(result.criteria?.documentation?.score ?? 0).toFixed(1)}/100
-                              </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                {result.criteria?.documentation?.feedback || 'No feedback available'}
+                              
+                              <div className="p-3 bg-white rounded border border-blue-100">
+                                <div className="text-sm font-medium text-gray-700 mb-1">Ease of Understanding</div>
+                                <div className="text-lg font-semibold text-blue-600">
+                                  {(mostRecentResult.criteria?.documentation?.score ?? 0).toFixed(1)}/100
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {mostRecentResult.criteria?.documentation?.feedback || 'No feedback available'}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -875,7 +872,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
               </div>
             ) : (
               // Empty State
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-left">
                 <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>

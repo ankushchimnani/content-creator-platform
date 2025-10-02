@@ -7,6 +7,7 @@ export const adminRouter = Router();
 // Get all users for admin management
 adminRouter.get('/users', requireAuth, requireRole(['ADMIN']), async (req, res) => {
   try {
+    console.log('Admin users endpoint called by user:', req.user?.id, req.user?.email);
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -18,17 +19,13 @@ adminRouter.get('/users', requireAuth, requireRole(['ADMIN']), async (req, res) 
         assignedAdminId: true,
         assignedAdmin: {
           select: { id: true, name: true, email: true }
-        },
-        _count: {
-          select: {
-            contents: true,
-            assignedCreators: true
-          }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
+    console.log('Found users:', users.length);
+    console.log('Users data:', users.map(u => ({ id: u.id, email: u.email, role: u.role, assignedAdminId: u.assignedAdminId })));
     res.json({ users });
   } catch (error) {
     console.error('Error fetching users:', error);

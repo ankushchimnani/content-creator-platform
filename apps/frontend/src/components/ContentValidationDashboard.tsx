@@ -380,7 +380,7 @@ export function ContentValidationDashboard({ user, token, onLogout, onNavigateTo
 
                 {/* Empty State */}
                 {filteredTasks.length === 0 && (
-                  <div className="text-center py-12">
+                  <div className="text-left py-12">
                     <span className="material-icons text-6xl text-gray-400 mb-4">assignment</span>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
                       {searchQuery ? 'No tasks found' : 'No tasks yet'}

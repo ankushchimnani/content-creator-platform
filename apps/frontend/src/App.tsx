@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { AdminDashboard } from './components/AdminDashboard'
 import { CreatorDashboard } from './components/CreatorDashboard'
+import { SuperAdminDashboard } from './components/SuperAdminDashboard'
 import { ContentCreation } from './components/ContentCreation'
 import { Settings } from './components/Settings'
 import { apiCall } from './utils/api'
@@ -225,7 +226,13 @@ function App() {
           />
         ) : (
           // Role-based dashboard routing
-          user!.role === 'ADMIN' ? (
+          user!.role === 'SUPER_ADMIN' ? (
+            <SuperAdminDashboard 
+              user={user!} 
+              token={token!} 
+              onLogout={logout}
+            />
+          ) : user!.role === 'ADMIN' ? (
             <AdminDashboard 
               user={user!} 
               token={token!} 

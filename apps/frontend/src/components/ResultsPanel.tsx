@@ -8,7 +8,7 @@ type Props = {
     processingTime?: number
     assignmentContext?: {
       topic: string
-      prerequisiteTopics: string[]
+      topicsTaughtSoFar: string[]
       hasGuidelines: boolean
       guidelines?: string
     } | null
@@ -30,7 +30,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
       <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Validation Dashboard</h2>
         
-        <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+        <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-left">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-3">
             <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -60,7 +60,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
       <div className="space-y-6">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Validation Dashboard</h2>
-          <div className="text-center py-8">
+          <div className="text-left py-8">
             <div className="animate-spin w-12 h-12 mx-auto mb-4 text-blue-600">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -82,7 +82,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
       <div className="space-y-6">
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4 text-red-800">Validation Error</h2>
-          <div className="text-center py-4">
+          <div className="text-left py-4">
             <div className="text-red-500 mb-2">
               <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -153,11 +153,11 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
                 <span className="ml-2 text-purple-700">{result!.assignmentContext.topic}</span>
               </div>
               
-              {result!.assignmentContext.prerequisiteTopics.length > 0 && (
+              {result!.assignmentContext.topicsTaughtSoFar.length > 0 && (
                 <div>
-                  <span className="font-medium text-purple-800">Prerequisites:</span>
+                  <span className="font-medium text-purple-800">Topics Taught So Far:</span>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {result!.assignmentContext.prerequisiteTopics.map((topic, index) => (
+                    {result!.assignmentContext.topicsTaughtSoFar.map((topic, index) => (
                       <span key={index} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                         {topic}
                       </span>
@@ -208,7 +208,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
                     <span className="font-medium text-gray-900">{label}</span>
                     <p className="text-xs text-gray-500 mt-1">{description}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left">
                     <span className="text-lg font-semibold text-gray-900">{item.score}%</span>
                     {item.confidence !== undefined && (
                       <div className="text-xs text-gray-500">
