@@ -3,6 +3,7 @@ import { apiCall } from '../utils/api';
 import { EditorSplit } from './EditorSplit';
 import { ResultsPanel } from './ResultsPanel';
 import { AssignmentTasks } from './AssignmentTasks';
+import { CreatorGuidelines } from './CreatorGuidelines';
 import { Settings } from './Settings';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -93,7 +94,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingContent, setEditingContent] = useState<Content | null>(null);
-  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'settings'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'guidelines' | 'settings'>('content');
   const [contentTypeFilter, setContentTypeFilter] = useState<'ALL' | 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('ALL');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
@@ -352,6 +353,16 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
             >
               Tasks
             </button>
+            <button
+              onClick={() => setActiveTab('guidelines')}
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
+                activeTab === 'guidelines'
+                  ? 'text-subtle-light bg-gray-100'
+                  : 'text-subtle-light hover:bg-gray-100'
+              }`}
+            >
+              Guidelines
+            </button>
           </nav>
 
           {/* User Info */}
@@ -389,6 +400,12 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
               onCreateContent={handleCreateContentFromAssignment}
             />
           </div>
+        ) : activeTab === 'guidelines' ? (
+          <CreatorGuidelines 
+            user={user} 
+            token={token} 
+            onBack={() => setActiveTab('content')} 
+          />
         ) : activeTab === 'settings' ? (
           <Settings 
             user={user} 

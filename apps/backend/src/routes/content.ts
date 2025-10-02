@@ -90,6 +90,31 @@ contentRouter.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Get guidelines for creators (public endpoint for authenticated users)
+contentRouter.get('/guidelines', requireAuth, async (req, res) => {
+  try {
+    const guidelines = await (prisma as any).guidelinesTemplate.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        contentType: true,
+        guidelines: true,
+        version: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json({ guidelines });
+  } catch (error) {
+    console.error('Error fetching guidelines:', error);
+    res.status(500).json({ error: 'Failed to fetch guidelines' });
+  }
+});
+
 // Get individual content by ID
 contentRouter.get('/:id', requireAuth, async (req, res) => {
   try {
