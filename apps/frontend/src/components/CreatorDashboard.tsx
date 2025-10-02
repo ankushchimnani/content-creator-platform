@@ -402,7 +402,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
           </div>
         ) : activeTab === 'guidelines' ? (
           <CreatorGuidelines 
-            user={user} 
             token={token} 
             onBack={() => setActiveTab('content')} 
           />

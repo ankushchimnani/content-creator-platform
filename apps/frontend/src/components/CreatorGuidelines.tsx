@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { apiCall } from '../utils/api';
 
@@ -14,12 +14,11 @@ type GuidelinesTemplate = {
 };
 
 type Props = {
-  user: any;
   token: string;
   onBack: () => void;
 };
 
-export function CreatorGuidelines({ user, token, onBack }: Props) {
+export function CreatorGuidelines({ token, onBack }: Props) {
   const [guidelines, setGuidelines] = useState<GuidelinesTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContentType, setSelectedContentType] = useState<'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('ASSIGNMENT');
