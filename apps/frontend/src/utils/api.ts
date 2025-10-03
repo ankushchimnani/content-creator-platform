@@ -20,5 +20,8 @@ export const API_BASE_URL = getApiBaseUrl();
 // Helper function to make API calls with proper base URL
 export const apiCall = (endpoint: string, options?: RequestInit) => {
   const url = endpoint.startsWith('/') ? `${API_BASE_URL}${endpoint}` : endpoint;
-  return fetch(url, options);
+  return fetch(url, {
+    credentials: 'include',
+    ...options,
+  });
 };

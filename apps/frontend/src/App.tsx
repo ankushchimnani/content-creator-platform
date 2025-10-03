@@ -122,18 +122,32 @@ function App() {
   }
 
   const login = async () => {
-    const res = await apiCall('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!res.ok) {
-      alert('Login failed')
-      return
+    try {
+      console.log('Attempting login with:', { email, password: '***' });
+      const res = await apiCall('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      console.log('Login response status:', res.status);
+      console.log('Login response headers:', res.headers);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Login failed:', res.status, errorText);
+        alert(`Login failed: ${res.status} - ${errorText}`);
+        return;
+      }
+      
+      const data = (await res.json()) as LoginResponse;
+      console.log('Login successful:', data);
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      console.error('Login error:', error);
+      alert(`Login error: ${error}`);
     }
-    const data = (await res.json()) as LoginResponse
-    setToken(data.token)
-    setUser(data.user)
   }
 
   const logout = () => {
@@ -169,7 +183,7 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">conjunction</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">GuardRail</h2>
                 <p className="text-sm sm:text-base text-gray-600"></p>
               </div>
               
