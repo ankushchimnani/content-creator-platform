@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
-import { requireAuth } from '../middleware/auth';
-import { runDualLLMValidation, type AssignmentContext } from '../services/validation';
+import { prisma } from '../lib/prisma.js';
+import { requireAuth } from '../middleware/auth.js';
+import { runDualLLMValidation, type AssignmentContext } from '../services/validation.js';
 import bcrypt from 'bcryptjs';
 import csv from 'csv-parser';
 import { Readable } from 'stream';

@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 export const contentRouter = Router();
 
 // Validation schemas

@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth';
-import { runDualLLMValidation, runDualValidation, type AssignmentContext } from '../services/validation';
-import { prisma } from '../lib/prisma';
+import { requireAuth } from '../middleware/auth.js';
+import { runDualLLMValidation, runDualValidation, type AssignmentContext } from '../services/validation.js';
+import { prisma } from '../lib/prisma.js';
 
 export const validateRouter = Router();
 

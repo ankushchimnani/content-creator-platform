@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 export const adminRouter = Router();
 
 // Get all users for admin management

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { env } from '../lib/env';
-import { prisma } from '../lib/prisma';
+import { env } from '../lib/env.js';
+import { prisma } from '../lib/prisma.js';
 
 export type CriteriaScores = {
   relevance: number;

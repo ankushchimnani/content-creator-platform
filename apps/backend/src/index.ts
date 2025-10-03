@@ -5,12 +5,12 @@ import cors from 'cors';
 import helmet from 'helmet';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
-import { authRouter } from './routes/auth';
-import { validateRouter } from './routes/validate';
-import contentRouter from './routes/content';
-import adminRouter from './routes/admin';
-import { assignmentsRouter } from './routes/assignments';
-import { superAdminRouter } from './routes/super-admin';
+import { authRouter } from './routes/auth.js';
+import { validateRouter } from './routes/validate.js';
+import contentRouter from './routes/content.js';
+import adminRouter from './routes/admin.js';
+import { assignmentsRouter } from './routes/assignments.js';
+import { superAdminRouter } from './routes/super-admin.js';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
