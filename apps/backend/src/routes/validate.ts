@@ -3,18 +3,46 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { runDualLLMValidation, runDualValidation, type AssignmentContext } from '../services/validation.js';
 import { prisma } from '../lib/prisma.js';
+import { preprocessContent, validateContentStructure } from '../utils/contentPreprocessing.js';
 
 export const validateRouter = Router();
 
 const requestSchema = z.object({
-  content: z.string().min(1),
-  contentId: z.string().optional(), // Optional content ID to check for assignment
+  content: z.string()
+    .min(1, "Content cannot be empty")
+    .max(50000, "Content must be less than 50,000 characters")
+    .refine((val) => val.trim().length > 0, "Content cannot be only whitespace"),
+  contentId: z.string().optional(),
+  contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).optional(),
+  topic: z.string().optional(),
+  topicsTaughtSoFar: z.array(z.string()).optional()
 });
 
 validateRouter.post('/', requireAuth, async (req, res) => {
   const parsed = requestSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const { content, contentId } = parsed.data;
+  if (!parsed.success) {
+    return res.status(400).json({ 
+      error: 'Invalid payload', 
+      details: parsed.error.issues.map(issue => ({
+        field: issue.path.join('.'),
+        message: issue.message
+      }))
+    });
+  }
+  
+  const { content, contentId, contentType, topic, topicsTaughtSoFar } = parsed.data;
+  
+  // Preprocess and validate content structure
+  const { cleanedContent, warnings, metadata } = preprocessContent(content);
+  const structureValidation = validateContentStructure(cleanedContent);
+  
+  // Log preprocessing warnings
+  if (warnings.length > 0) {
+    console.log('Content preprocessing warnings:', warnings);
+  }
+  
+  // Use cleaned content for validation
+  const contentToValidate = cleanedContent;
 
   // Check if content is linked to an assignment
   let assignmentContext: AssignmentContext | undefined;
@@ -50,13 +78,44 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       console.error('Error fetching assignment context:', error);
       // Continue without assignment context if there's an error
     }
+  } else if (contentType && topic) {
+    // Create assignment context from provided fields
+    assignmentContext = {
+      topic: topic,
+      topicsTaughtSoFar: topicsTaughtSoFar || [],
+      contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+    };
   }
 
   const start = Date.now();
   
   // Use new dual LLM validation system for enhanced accuracy
   try {
-    const dualResult = await runDualLLMValidation(content, assignmentContext);
+    const dualResult = await runDualLLMValidation(contentToValidate, assignmentContext);
+    const processingTime = Date.now() - start;
+    
+    // Validate the result quality
+    const overallScore = Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3);
+    
+    // Check for potential LLM failures
+    if (overallScore === 0 && processingTime < 1000) {
+      console.warn('Potential LLM failure detected: Zero score with very fast processing time');
+      // Log this for monitoring
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'LLM_VALIDATION_FAILURE',
+        metadata: {
+          contentLength: contentToValidate.length,
+          originalLength: content.length,
+          processingTime,
+          contentType: assignmentContext?.contentType || 'unknown',
+          preprocessingWarnings: warnings,
+          structureIssues: structureValidation.issues
+        }
+        }
+      });
+    }
     
     res.json({
       criteria: {
@@ -79,9 +138,15 @@ validateRouter.post('/', requireAuth, async (req, res) => {
           issues: [] 
         },
       },
-      overall: Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3),
+      overall: overallScore,
       processingTime: dualResult.processingTime,
       confidence: 0.95,
+      // Include preprocessing information
+      preprocessing: {
+        warnings,
+        metadata,
+        structureValidation
+      },
       // Include detailed dual validation results for debugging
       dualValidationDetails: {
         round1: dualResult.round1Results,
@@ -91,10 +156,24 @@ validateRouter.post('/', requireAuth, async (req, res) => {
     return;
   } catch (error) {
     console.error('Dual LLM validation failed, falling back to legacy system:', error);
+    
+    // Log the error for monitoring
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'LLM_VALIDATION_ERROR',
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          contentLength: content.length,
+          contentType: assignmentContext?.contentType || 'unknown'
+        }
+      }
+    });
+    
     // Fall back to legacy dual validation system
   }
   
-  const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content, assignmentContext);
+  const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(contentToValidate, assignmentContext);
   const processingTime = Date.now() - start;
   // Let AI handle all issue detection instead of hardcoded rules
   res.json({

@@ -155,6 +155,13 @@ function App() {
     setUser(null)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      login()
+    }
+  }
+
   // Show loading spinner while validating token
   if (isValidatingToken) {
     return (
@@ -194,7 +201,8 @@ function App() {
                     placeholder="Email address" 
                     type="email"
                     value={email} 
-                    onChange={(e) => setEmail(e.target.value)} 
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={handleKeyDown}
                   />
                 </div>
                 <div>
@@ -203,7 +211,8 @@ function App() {
                     placeholder="Password" 
                     type="password" 
                     value={password} 
-                    onChange={(e) => setPassword(e.target.value)} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={handleKeyDown}
                   />
                 </div>
                 <button 

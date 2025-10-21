@@ -25,6 +25,7 @@ const updateAssignmentSchema = z.object({
   difficulty: z.string().optional(), // For ASSIGNMENT type
   dueDate: z.string().datetime().optional(),
   status: z.enum(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE']).optional(),
+  assignedToId: z.string().optional(), // Allow changing assigned creator
 });
 
 // Get all assignments for admin (created by them)
@@ -33,7 +34,7 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
     const adminId = req.user!.id;
     
     // Get assignments created by this admin
-    const assignments = await (prisma as any).contentAssignment.findMany({
+    const assignments = await prisma.contentAssignment.findMany({
       where: { assignedById: adminId },
       include: {
         assignedTo: {
@@ -126,7 +127,7 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
   try {
     const creatorId = req.user!.id;
     
-    const assignments = await (prisma as any).contentAssignment.findMany({
+    const assignments = await prisma.contentAssignment.findMany({
       where: { assignedToId: creatorId },
       include: {
         assignedBy: {
@@ -183,7 +184,7 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
     // Wrap assignment creation and audit logging in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create assignment
-      const assignment = await (tx as any).contentAssignment.create({
+      const assignment = await tx.contentAssignment.create({
         data: {
           topic,
           topicsTaughtSoFar,
@@ -249,9 +250,17 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     }
 
     // Check if assignment exists and belongs to this admin
-    const existingAssignment = await (prisma as any).contentAssignment.findUnique({
+    const existingAssignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId as string },
-      select: { id: true, assignedById: true, status: true }
+      select: { 
+        id: true, 
+        assignedById: true, 
+        status: true, 
+        assignedToId: true,
+        content: {
+          select: { status: true }
+        }
+      }
     });
 
     if (!existingAssignment) {
@@ -262,11 +271,37 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, status } = parsed.data;
+    // Check if assignment is completed (cannot edit completed tasks)
+    const effectiveStatus = existingAssignment.content?.status || existingAssignment.status;
+    const isCompleted = effectiveStatus === 'APPROVED' || effectiveStatus === 'COMPLETED';
+    
+    if (isCompleted) {
+      return res.status(400).json({ 
+        error: 'Cannot edit completed tasks', 
+        message: 'This task has been completed and cannot be modified' 
+      });
+    }
+
+    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, status, assignedToId } = parsed.data;
+    
+    // If changing assignedToId, validate that the new creator exists and is assigned to this admin
+    if (assignedToId && assignedToId !== existingAssignment.assignedToId) {
+      const newCreator = await prisma.user.findFirst({
+        where: { 
+          id: assignedToId,
+          role: 'CREATOR',
+          assignedAdminId: adminId
+        }
+      });
+      
+      if (!newCreator) {
+        return res.status(400).json({ error: 'Invalid creator assignment. Creator must be assigned to you.' });
+      }
+    }
     
     // Wrap assignment update and audit logging in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      const updatedAssignment = await (tx as any).contentAssignment.update({
+      const updatedAssignment = await tx.contentAssignment.update({
         where: { id: assignmentId as string },
         data: {
           ...(topic && { topic }),
@@ -276,6 +311,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
           ...(difficulty !== undefined && { difficulty: difficulty || null }),
           ...(dueDate && { dueDate: new Date(dueDate) }),
           ...(status && { status }),
+          ...(assignedToId && { assignedToId }),
         },
         include: {
           assignedTo: {
@@ -335,7 +371,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
     const creatorId = req.user!.id;
 
     // Check if assignment exists and is assigned to this creator
-    const assignment = await (prisma as any).contentAssignment.findUnique({
+    const assignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, status: true, topic: true }
     });
@@ -354,7 +390,7 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
 
     // Wrap assignment update and audit logging in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      const updatedAssignment = await (tx as any).contentAssignment.update({
+      const updatedAssignment = await tx.contentAssignment.update({
         where: { id: assignmentId as string },
         data: { status: 'IN_PROGRESS' },
         include: {
@@ -407,7 +443,7 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
     }
 
     // Verify assignment belongs to creator
-    const assignment = await (prisma as any).contentAssignment.findUnique({
+    const assignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedToId: true, contentId: true, topic: true }
     });
@@ -441,7 +477,7 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
     // Wrap all operations in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Link content to assignment and mark as completed
-      const updatedAssignment = await (tx as any).contentAssignment.update({
+      const updatedAssignment = await tx.contentAssignment.update({
         where: { id: assignmentId as string },
         data: { 
           contentId: contentId,
@@ -521,7 +557,7 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
     const adminId = req.user!.id;
 
     // Check if assignment exists and belongs to this admin
-    const assignment = await (prisma as any).contentAssignment.findUnique({
+    const assignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId as string },
       select: { id: true, assignedById: true, topic: true, contentId: true }
     });
@@ -541,7 +577,7 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
     // Wrap assignment deletion and audit logging in a transaction
     await prisma.$transaction(async (tx) => {
       // Delete the assignment
-      await (tx as any).contentAssignment.delete({
+      await tx.contentAssignment.delete({
         where: { id: assignmentId as string }
       });
 

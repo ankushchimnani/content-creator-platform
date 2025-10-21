@@ -393,6 +393,34 @@ superadmin@example.com,SUPER_ADMIN,`;
     window.URL.revokeObjectURL(url);
   };
 
+  const downloadTemporaryPasswords = async () => {
+    try {
+      const response = await apiCall('/api/super-admin/users/temporary-passwords/download', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `temporary-passwords-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert('Failed to download temporary passwords');
+      }
+    } catch (error) {
+      console.error('Error downloading temporary passwords:', error);
+      alert('Failed to download temporary passwords');
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type === 'text/csv') {
@@ -1035,7 +1063,18 @@ superadmin@example.com,SUPER_ADMIN,`;
                       
                       {bulkCreateResults.users.length > 0 && (
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Created Users (with temporary passwords):</h4>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900">Created Users (with temporary passwords):</h4>
+                            <button
+                              onClick={downloadTemporaryPasswords}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download All
+                            </button>
+                          </div>
                           <div className="bg-gray-50 p-4 rounded-md max-h-64 overflow-y-auto">
                             {bulkCreateResults.users.map((user: any) => (
                               <div key={user.id} className="text-sm text-gray-800 mb-1">
@@ -1169,7 +1208,18 @@ superadmin@example.com,SUPER_ADMIN,`;
                       
                       {bulkCreateResults.users.length > 0 && (
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Created Users (with temporary passwords):</h4>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900">Created Users (with temporary passwords):</h4>
+                            <button
+                              onClick={downloadTemporaryPasswords}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download All
+                            </button>
+                          </div>
                           <div className="bg-gray-50 p-4 rounded-md max-h-64 overflow-y-auto">
                             {bulkCreateResults.users.map((user: any) => (
                               <div key={user.id} className="text-sm text-gray-800 mb-1">

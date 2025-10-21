@@ -10,8 +10,8 @@ const getApiBaseUrl = () => {
     // Development mode - use local backend
     return 'http://localhost:4000';
   } else {
-    // Production mode - use deployed backend with HTTPS
-    return 'https://43.205.238.172:4000';
+    // Production mode - use deployed backend with HTTP
+    return 'http://43.205.238.172:4000';
   }
 };
 

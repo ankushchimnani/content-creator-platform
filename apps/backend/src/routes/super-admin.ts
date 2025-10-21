@@ -803,6 +803,12 @@ superAdminRouter.post('/users/bulk-create', async (req, res) => {
           }
         });
         
+        // Store temporary password for tracking
+        await prisma.$executeRaw`
+          INSERT INTO "TemporaryPassword" (id, "userId", email, "tempPassword", "createdAt")
+          VALUES (gen_random_uuid()::text, ${newUser.id}, ${newUser.email}, ${tempPassword}, NOW())
+        `;
+        
         results.created++;
         results.users.push({
           ...newUser,
@@ -819,6 +825,71 @@ superAdminRouter.post('/users/bulk-create', async (req, res) => {
   } catch (error) {
     console.error('Error in bulk user creation:', error);
     res.status(500).json({ error: 'Failed to process user creation' });
+  }
+});
+
+// Get all temporary passwords (for download)
+superAdminRouter.get('/users/temporary-passwords', async (req, res) => {
+  try {
+    const tempPasswords = await prisma.$queryRaw`
+      SELECT 
+        tp.email,
+        tp."tempPassword",
+        tp."createdAt",
+        tp.used,
+        tp."usedAt",
+        u.name,
+        u.role,
+        u."assignedAdminId",
+        admin.name as "adminName",
+        admin.email as "adminEmail"
+      FROM "TemporaryPassword" tp
+      JOIN "User" u ON tp."userId" = u.id
+      LEFT JOIN "User" admin ON u."assignedAdminId" = admin.id
+      ORDER BY tp."createdAt" DESC
+    ` as any[];
+    
+    res.json({ tempPasswords });
+  } catch (error) {
+    console.error('Error fetching temporary passwords:', error);
+    res.status(500).json({ error: 'Failed to fetch temporary passwords' });
+  }
+});
+
+// Download temporary passwords as CSV
+superAdminRouter.get('/users/temporary-passwords/download', async (req, res) => {
+  try {
+    const tempPasswords = await prisma.$queryRaw`
+      SELECT 
+        tp.email,
+        tp."tempPassword",
+        tp."createdAt",
+        tp.used,
+        tp."usedAt",
+        u.name,
+        u.role,
+        admin.name as "adminName",
+        admin.email as "adminEmail"
+      FROM "TemporaryPassword" tp
+      JOIN "User" u ON tp."userId" = u.id
+      LEFT JOIN "User" admin ON u."assignedAdminId" = admin.id
+      ORDER BY tp."createdAt" DESC
+    ` as any[];
+    
+    // Create CSV content
+    const csvHeader = 'Email,Name,Role,Admin Name,Admin Email,Temporary Password,Created At,Used,Used At\n';
+    const csvRows = tempPasswords.map(row => 
+      `"${row.email}","${row.name || ''}","${row.role}","${row.adminName || ''}","${row.adminEmail || ''}","${row.tempPassword}","${row.createdAt}","${row.used}","${row.usedAt || ''}"`
+    ).join('\n');
+    
+    const csvContent = csvHeader + csvRows;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="temporary-passwords.csv"');
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Error downloading temporary passwords:', error);
+    res.status(500).json({ error: 'Failed to download temporary passwords' });
   }
 });
 

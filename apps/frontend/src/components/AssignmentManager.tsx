@@ -77,6 +77,28 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
     }
   }, [triggerCreate]);
 
+  // Populate form when editing assignment
+  useEffect(() => {
+    if (editingAssignment) {
+      console.log('🔄 Populating form for editing assignment:', editingAssignment);
+      setTopic(editingAssignment.topic || '');
+      setTopicsTaughtSoFar(editingAssignment.topicsTaughtSoFar || []);
+      setGuidelines(editingAssignment.guidelines || '');
+      setContentType(editingAssignment.contentType || 'LECTURE_NOTE');
+      setDifficulty(editingAssignment.difficulty || '');
+      setDueDate(editingAssignment.dueDate ? editingAssignment.dueDate.split('T')[0] : '');
+      setAssignedToId(editingAssignment.assignedTo?.id || '');
+      console.log('✅ Form populated successfully');
+    }
+  }, [editingAssignment]);
+
+  // Debug form rendering
+  useEffect(() => {
+    if (isCreating || editingAssignment) {
+      console.log('📝 Form rendered - isCreating:', isCreating, 'editingAssignment:', !!editingAssignment);
+    }
+  }, [isCreating, editingAssignment]);
+
   const fetchAssignments = async () => {
     try {
       const res = await apiCall('/api/assignments', {
@@ -407,7 +429,6 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                 value={assignedToId}
                 onChange={(e) => setAssignedToId(e.target.value)}
                 className="w-full px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                disabled={!!editingAssignment}
               >
                 <option value="">Select a creator... ({assignedCreators.length} available)</option>
                 {assignedCreators.map((creator) => (
@@ -758,12 +779,35 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
 
                   {/* Action Buttons */}
                   <div className="flex justify-end gap-3 pt-4">
-                    <button
-                      onClick={() => setEditingAssignment(assignment)}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
-                    >
-                      Edit Task
-                    </button>
+                    {(() => {
+                      const effectiveStatus = assignment.content ? assignment.content.status : assignment.status;
+                      const isCompleted = effectiveStatus === 'APPROVED' || effectiveStatus === 'COMPLETED';
+                      
+                      if (isCompleted) {
+                        return (
+                          <button
+                            disabled
+                            className="px-4 py-2 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed text-sm font-medium"
+                            title="Cannot edit completed tasks"
+                          >
+                            Edit Task (Completed)
+                          </button>
+                        );
+                      }
+                      
+                      return (
+                        <button
+                          onClick={() => {
+                            console.log('🖱️ Edit button clicked for assignment:', assignment);
+                            setEditingAssignment(assignment);
+                            console.log('✅ editingAssignment state set');
+                          }}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+                        >
+                          Edit Task
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
