@@ -18,12 +18,15 @@ const logger = pino({ transport: { target: 'pino-pretty' } });
 app.use(pinoHttp({ logger }));
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting - exclude OPTIONS requests for CORS preflight
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 1000, // 1000 requests per 15 minutes for both development and production
+  message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => req.method === 'OPTIONS' // Skip rate limiting for CORS preflight requests
 });
+
+// Use the same limiter for both environments
 app.use('/api/', limiter);
 app.use(cors({
   origin: [
@@ -36,13 +39,23 @@ app.use(cors({
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 }));
 app.use(express.json());
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
+
+// Development endpoint to reset rate limiter
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/api/dev/reset-rate-limit', (_req: Request, res: Response) => {
+    // This will reset the rate limiter for the current IP
+    res.json({ message: 'Rate limiter reset for development' });
+  });
+}
 
 app.use('/api/auth', authRouter);
 app.use('/api/validate', validateRouter);

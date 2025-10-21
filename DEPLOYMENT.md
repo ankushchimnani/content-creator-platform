@@ -32,6 +32,7 @@
    - JWT authentication with configurable secret
    - Password hashing with bcrypt
    - CORS protection
+   - Rate limiting: 1000 requests per 15 minutes
 
 ### ⚠️ **Required for Production**
 
