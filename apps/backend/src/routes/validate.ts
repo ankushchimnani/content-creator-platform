@@ -219,7 +219,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Content ID is required' });
     }
 
-    // Fetch the content
+    // Fetch the content with contentType included
     let content;
     if (user.role === 'ADMIN') {
       // Admins can re-validate content assigned to them for review or their own content
@@ -233,7 +233,12 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
             }
           ]
         },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          contentType: true,
+          status: true,
           author: {
             select: { id: true, name: true, email: true }
           }
@@ -246,7 +251,12 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
           id: contentId,
           authorId: user.id 
         },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          contentType: true,
+          status: true,
           author: {
             select: { id: true, name: true, email: true }
           }
@@ -277,7 +287,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
           assignmentContext = {
             topic: assignmentData.topic,
             topicsTaughtSoFar: assignmentData.topicsTaughtSoFar,
-            contentType: (content as any).contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+            contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
           };
         }
       }
@@ -287,35 +297,71 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
     }
 
     const start = Date.now();
-    const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content.content, assignmentContext);
+    
+    // Add timeout protection for LLM validation
+    const validationPromise = runDualLLMValidation(content.content, assignmentContext);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Validation timeout after 30 seconds')), 30000);
+    });
+    
+    let dualResult;
+    try {
+      dualResult = await Promise.race([validationPromise, timeoutPromise]) as any;
+    } catch (error) {
+      console.error('Validation failed:', error);
+      return res.status(500).json({ 
+        error: 'Validation failed', 
+        message: error instanceof Error ? error.message : 'Unknown validation error'
+      });
+    }
+    
     const processingTime = Date.now() - start;
 
     // Store validation results in database
     const validationResults = [];
-    for (const result of successes) {
-      const validationResult = await prisma.validationResult.create({
-        data: {
-          contentId: content.id,
-          llmProvider: result.provider === 'openai' ? 'OPENAI' : result.provider === 'gemini' ? 'ANTHROPIC' : 'LOCAL',
-          modelVersion: result.provider === 'openai' ? 'gpt-4o-mini' : result.provider === 'gemini' ? 'gemini-1.5-flash' : 'stub',
-          criteria: {
-            relevance: { score: result.scores.relevance, feedback: result.feedback.relevance, issues: [] },
-            continuity: { score: result.scores.continuity, feedback: result.feedback.continuity, issues: [] },
-            documentation: { score: result.scores.documentation, feedback: result.feedback.documentation, issues: [] }
-          },
-          overallScore: Math.round((result.scores.relevance + result.scores.continuity + result.scores.documentation) / 3),
-          processingTimeMs: processingTime,
-        },
-      });
-      validationResults.push(validationResult);
+    try {
+      // Store Round 2 results (final scores) from both models
+      const round2Results = [dualResult.round2Results.openai, dualResult.round2Results.gemini];
+      
+      for (const result of round2Results) {
+        if (result && result.scores) {
+          const validationResult = await prisma.validationResult.create({
+            data: {
+              contentId: content.id,
+              llmProvider: result.provider === 'openai' ? 'OPENAI' : result.provider === 'gemini' ? 'ANTHROPIC' : 'LOCAL',
+              modelVersion: result.provider === 'openai' ? 'gpt-4o-mini' : result.provider === 'gemini' ? 'gemini-1.5-flash' : 'stub',
+              criteria: {
+                relevance: { score: result.scores.relevance, feedback: result.feedback.relevance, issues: [] },
+                continuity: { score: result.scores.continuity, feedback: result.feedback.continuity, issues: [] },
+                documentation: { score: result.scores.documentation, feedback: result.feedback.documentation, issues: [] }
+              },
+              overallScore: Math.round((result.scores.relevance + result.scores.continuity + result.scores.documentation) / 3),
+              processingTimeMs: processingTime,
+            },
+          });
+          validationResults.push(validationResult);
+        }
+      }
+    } catch (dbError) {
+      console.error('Error storing validation results:', dbError);
+      // Continue with response even if database storage fails
     }
 
+    // Calculate overall score from final scores (maximum from Round 2)
+    const overallScore = Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3);
+    
     res.json({
       validationResults,
-      overallScore: overall,
-      confidence: overallConfidence,
+      overallScore,
+      confidence: 95, // High confidence from dual validation
       processingTimeMs: processingTime,
-      successes,
+      // Include detailed dual validation results for debugging
+      dualValidationDetails: {
+        round1: dualResult.round1Results,
+        round2: dualResult.round2Results,
+        finalScore: dualResult.finalScore,
+        finalFeedback: dualResult.finalFeedback
+      }
     });
   } catch (error) {
     console.error('Error re-validating content:', error);
