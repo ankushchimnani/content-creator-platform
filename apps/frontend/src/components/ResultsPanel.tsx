@@ -107,7 +107,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
   }
   
   const { overallScore, providers, criteria, overallConfidence, processingTime } = result!
-  const qualityLabel = overallScore > 85 ? 'Good' : overallScore >= 70 ? 'Fair' : 'Needs work'
+  const qualityLabel = overallScore > 65 ? 'Good' : overallScore >= 90 ? 'Fair' : 'Needs work'
   const qualityColor = overallScore > 85 ? 'text-green-600' : overallScore >= 70 ? 'text-yellow-600' : 'text-red-600'
 
   return (
@@ -179,11 +179,7 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
         )}
         
         <div className="mb-6">
-          <div className="text-sm font-medium text-gray-700 mb-2">Overall Quality</div>
           <div className="flex items-center gap-3">
-            <span className={cx('inline-block h-3 w-3 rounded-full', overallScore > 85 ? 'bg-green-500' : overallScore >= 70 ? 'bg-yellow-500' : 'bg-red-500')} />
-            <div className={cx('text-lg font-semibold', qualityColor)}>{qualityLabel}</div>
-            <div className="text-sm text-gray-600">({overallScore}%)</div>
             {overallConfidence !== undefined && (
               <div className="ml-auto text-sm text-gray-500">
                 <span className="bg-gray-100 px-2 py-1 rounded text-xs">
@@ -195,7 +191,6 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
         </div>
 
         <div className="mb-6">
-          <div className="text-sm font-medium text-gray-700 mb-3">Detailed Breakdown</div>
           <div className="space-y-6">
             {([
               ['Adherence to Structure', criteria.relevance, 'How well the content follows the required structure and format'],
