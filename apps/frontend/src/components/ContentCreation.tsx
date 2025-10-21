@@ -54,16 +54,6 @@ type Props = {
   taskData?: TaskData;
 };
 
-// Function to get sample reference URLs for different content types
-function getSampleReferenceUrl(contentType: string): string {
-  const sampleUrls = {
-    'ASSIGNMENT': 'https://peerabduljabbar.notion.site/How-to-create-assignments-26f8a9082226815ea660cfa8daa074eb',
-    'LECTURE_NOTE': 'https://peerabduljabbar.notion.site/Notes-Template-2798a908222680feaf41c7d794a040ea',
-    'PRE_READ': 'https://peerabduljabbar.notion.site/Pre-notes-Template-2798a908222680528079eb9b80a0849a'
-  };
-  return sampleUrls[contentType as keyof typeof sampleUrls] || sampleUrls.LECTURE_NOTE;
-}
-
 export function ContentCreation({ user, token, onBack, taskData }: Props) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
