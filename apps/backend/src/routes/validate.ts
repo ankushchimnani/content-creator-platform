@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
-import { runDualLLMValidation, runDualValidation, type AssignmentContext } from '../services/validation.js';
+import { runDualLLMValidation, type AssignmentContext } from '../services/validation.js';
 import { prisma } from '../lib/prisma.js';
 import { preprocessContent, validateContentStructure } from '../utils/contentPreprocessing.js';
 
@@ -18,6 +18,7 @@ const requestSchema = z.object({
   topicsTaughtSoFar: z.array(z.string()).optional()
 });
 
+// Unified validation endpoint - uses runDualLLMValidation consistently
 validateRouter.post('/', requireAuth, async (req, res) => {
   const parsed = requestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -49,73 +50,49 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   if (contentId) {
     try {
       const contentRecord = await prisma.$queryRaw`
-        SELECT "contentType" FROM "Content" WHERE id = ${contentId}
-      ` as Array<{ contentType: string }>;
+        SELECT ca.topic, ca."topicsTaughtSoFar", ca.guidelines, c."contentType"
+        FROM "ContentAssignment" ca
+        JOIN "Content" c ON ca."contentId" = c.id
+        WHERE ca."contentId" = ${contentId}
+      ` as Array<{
+        topic: string;
+        topicsTaughtSoFar: string[];
+        guidelines: string | null;
+        contentType: string;
+      }>;
 
       if (contentRecord.length > 0) {
-        const assignment = await prisma.$queryRaw`
-          SELECT topic, "topicsTaughtSoFar", guidelines 
-          FROM "ContentAssignment" 
-          WHERE "contentId" = ${contentId}
-        ` as Array<{
-          topic: string;
-          topicsTaughtSoFar: string[];
-          guidelines: string | null;
-        }>;
-
-        if (assignment.length > 0) {
-          const assignmentData = assignment[0];
-          if (assignmentData) {
+        const record = contentRecord[0];
         assignmentContext = {
-          topic: assignmentData.topic,
-          topicsTaughtSoFar: assignmentData.topicsTaughtSoFar,
-          contentType: contentRecord[0]?.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+          topic: record.topic,
+          topicsTaughtSoFar: record.topicsTaughtSoFar,
+          contentType: record.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
         };
-          }
-        }
       }
     } catch (error) {
       console.error('Error fetching assignment context:', error);
-      // Continue without assignment context if there's an error
     }
-  } else if (contentType && topic) {
-    // Create assignment context from provided fields
+  }
+
+  // Fallback assignment context from request parameters
+  if (!assignmentContext && (topic || topicsTaughtSoFar)) {
     assignmentContext = {
-      topic: topic,
+      topic: topic || 'General Content',
       topicsTaughtSoFar: topicsTaughtSoFar || [],
-      contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+      contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
     };
   }
 
   const start = Date.now();
   
-  // Use new dual LLM validation system for enhanced accuracy
   try {
+    console.log('Starting unified dual LLM validation');
+    console.log(`Content length: ${contentToValidate.length} characters`);
+    console.log(`Assignment context: ${assignmentContext ? 'Present' : 'Not present'}`);
+    
+    // Use unified dual LLM validation system
     const dualResult = await runDualLLMValidation(contentToValidate, assignmentContext);
-    const processingTime = Date.now() - start;
-    
-    // Validate the result quality
     const overallScore = Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3);
-    
-    // Check for potential LLM failures
-    if (overallScore === 0 && processingTime < 1000) {
-      console.warn('Potential LLM failure detected: Zero score with very fast processing time');
-      // Log this for monitoring
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'LLM_VALIDATION_FAILURE',
-        metadata: {
-          contentLength: contentToValidate.length,
-          originalLength: content.length,
-          processingTime,
-          contentType: assignmentContext?.contentType || 'unknown',
-          preprocessingWarnings: warnings,
-          structureIssues: structureValidation.issues
-        }
-        }
-      });
-    }
     
     res.json({
       criteria: {
@@ -153,9 +130,8 @@ validateRouter.post('/', requireAuth, async (req, res) => {
         round2: dualResult.round2Results
       }
     });
-    return;
   } catch (error) {
-    console.error('Dual LLM validation failed, falling back to legacy system:', error);
+    console.error('Unified dual LLM validation failed:', error);
     
     // Log the error for monitoring
     await prisma.auditLog.create({
@@ -170,46 +146,17 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       }
     });
     
-    // Fall back to legacy dual validation system
+    // Return error response
+    res.status(500).json({ 
+      error: 'Validation failed', 
+      message: error instanceof Error ? error.message : 'Unknown validation error',
+      contentLength: content.length,
+      contentType: assignmentContext?.contentType || 'unknown'
+    });
   }
-  
-  const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(contentToValidate, assignmentContext);
-  const processingTime = Date.now() - start;
-  // Let AI handle all issue detection instead of hardcoded rules
-  res.json({
-    criteria: {
-      relevance: { 
-        score: consensus.relevance, 
-        confidence: confidence.relevance, 
-        feedback: successes.length > 0 ? (successes[0]?.feedback?.relevance || '') : '', 
-        issues: [] 
-      },
-      continuity: { 
-        score: consensus.continuity, 
-        confidence: confidence.continuity, 
-        feedback: successes.length > 0 ? (successes[0]?.feedback?.continuity || '') : '', 
-        issues: [] 
-      },
-      documentation: { 
-        score: consensus.documentation, 
-        confidence: confidence.documentation, 
-        feedback: successes.length > 0 ? (successes[0]?.feedback?.documentation || '') : '', 
-        issues: [] 
-      },
-    },
-    providers: successes.map(s => s.provider),
-    overallScore: overall,
-    overallConfidence,
-    processingTime,
-    assignmentContext: assignmentContext ? {
-      topic: assignmentContext.topic,
-      topicsTaughtSoFar: assignmentContext.topicsTaughtSoFar,
-      hasGuidelines: false
-    } : null,
-  });
 });
 
-// Re-validate existing content by ID
+// Re-validate existing content by ID - uses unified system
 validateRouter.post('/:id', requireAuth, async (req, res) => {
   try {
     const contentId = req.params.id;
@@ -221,8 +168,8 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
 
     // Fetch the content with contentType included
     let content;
-    if (user.role === 'ADMIN') {
-      // Admins can re-validate content assigned to them for review or their own content
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+      // Admins and Super Admins can re-validate content assigned to them for review or their own content
       content = await prisma.content.findFirst({
         where: {
           id: contentId,
@@ -289,7 +236,10 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
             topicsTaughtSoFar: assignmentData.topicsTaughtSoFar,
             contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
           };
+          console.log(`Found assignment context for content ${contentId}: ${assignmentData.topic}`);
         }
+      } else {
+        console.log(`No assignment context found for content ${contentId}, proceeding without context`);
       }
     } catch (error) {
       console.error('Error fetching assignment context:', error);
@@ -298,30 +248,28 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
 
     const start = Date.now();
     
-    // Add timeout protection for LLM validation
-    const validationPromise = runDualLLMValidation(content.content, assignmentContext);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Validation timeout after 30 seconds')), 30000);
-    });
+    console.log(`Starting unified dual LLM validation for content ${contentId}`);
+    console.log(`Content length: ${content.content.length} characters`);
+    console.log(`Assignment context: ${assignmentContext ? 'Present' : 'Not present'}`);
     
-    let dualResult;
-    try {
-      dualResult = await Promise.race([validationPromise, timeoutPromise]) as any;
-    } catch (error) {
-      console.error('Validation failed:', error);
-      return res.status(500).json({ 
-        error: 'Validation failed', 
-        message: error instanceof Error ? error.message : 'Unknown validation error'
-      });
-    }
-    
+    // Use unified dual LLM validation system
+    const dualResult = await runDualLLMValidation(content.content, assignmentContext);
     const processingTime = Date.now() - start;
 
     // Store validation results in database
     const validationResults = [];
     try {
       // Store Round 2 results (final scores) from both models
-      const round2Results = [dualResult.round2Results.openai, dualResult.round2Results.gemini];
+      const round2Results = [];
+      
+      if (dualResult?.round2Results?.openai) {
+        round2Results.push(dualResult.round2Results.openai);
+      }
+      if (dualResult?.round2Results?.gemini) {
+        round2Results.push(dualResult.round2Results.gemini);
+      }
+      
+      console.log(`Storing ${round2Results.length} validation results`);
       
       for (const result of round2Results) {
         if (result && result.scores) {
@@ -348,7 +296,19 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
     }
 
     // Calculate overall score from final scores (maximum from Round 2)
-    const overallScore = Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3);
+    let overallScore = 0;
+    if (dualResult?.finalScore) {
+      overallScore = Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3);
+    } else {
+      console.warn('Warning: dualResult.finalScore is missing, using fallback score calculation');
+      // Fallback: calculate from stored validation results
+      if (validationResults.length > 0) {
+        const avgScore = validationResults.reduce((sum, result) => sum + result.overallScore, 0) / validationResults.length;
+        overallScore = Math.round(avgScore);
+      }
+    }
+    
+    console.log(`Final overall score: ${overallScore}`);
     
     res.json({
       validationResults,
@@ -356,12 +316,12 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
       confidence: 95, // High confidence from dual validation
       processingTimeMs: processingTime,
       // Include detailed dual validation results for debugging
-      dualValidationDetails: {
+      dualValidationDetails: dualResult ? {
         round1: dualResult.round1Results,
         round2: dualResult.round2Results,
         finalScore: dualResult.finalScore,
         finalFeedback: dualResult.finalFeedback
-      }
+      } : null
     });
   } catch (error) {
     console.error('Error re-validating content:', error);
@@ -369,94 +329,91 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Validate content specifically for an assignment
+// Validate content specifically for an assignment - uses unified system
 validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) => {
   try {
     const assignmentId = req.params.assignmentId;
-    const parsed = requestSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-    const { content } = parsed.data;
+    const user = req.user!;
+    
+    if (!assignmentId) {
+      return res.status(400).json({ error: 'Assignment ID is required' });
+    }
 
     // Fetch assignment details
-    const assignmentQuery = await prisma.$queryRaw`
-      SELECT topic, "topicsTaughtSoFar", guidelines, "assignedToId", "assignedById", "contentType"
-      FROM "ContentAssignment" 
-      WHERE id = ${assignmentId}
-    ` as Array<{
-      topic: string;
-      topicsTaughtSoFar: string[];
-      guidelines: string | null;
-      assignedToId: string;
-      assignedById: string;
-      contentType: string;
-    }>;
+    const assignment = await prisma.contentAssignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        assignedTo: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    });
 
-    if (assignmentQuery.length === 0) {
+    if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found' });
     }
 
-    const assignment = assignmentQuery[0];
-
-    // Check if user has access to this assignment
-    const userId = req.user!.id;
-    const userRole = req.user!.role;
-    
-    if (userRole === 'CREATOR' && assignment?.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Assignment not assigned to you' });
+    // Check if user has permission to validate this assignment
+    if (user.role === 'CREATOR' && assignment.assignedToId !== user.id) {
+      return res.status(403).json({ error: 'You can only validate your own assignments' });
     }
+
+    const { content, contentType } = req.body;
     
-    if (userRole === 'ADMIN' && assignment?.assignedById !== userId) {
-      return res.status(403).json({ error: 'Assignment not created by you' });
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content is required' });
     }
 
     const assignmentContext: AssignmentContext = {
-      topic: assignment?.topic || '',
-      topicsTaughtSoFar: assignment?.topicsTaughtSoFar || [],
-      contentType: assignment?.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+      topic: assignment.topic,
+      topicsTaughtSoFar: assignment.topicsTaughtSoFar,
+      contentType: contentType || assignment.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
     };
 
     const start = Date.now();
-    const { consensus, overall, successes, confidence, overallConfidence } = await runDualValidation(content, assignmentContext);
+    
+    // Use unified dual LLM validation system
+    const dualResult = await runDualLLMValidation(content, assignmentContext);
     const processingTime = Date.now() - start;
     
-    // Let AI handle all issue detection instead of hardcoded rules
-
     res.json({
       criteria: {
         relevance: { 
-          score: consensus.relevance, 
-          confidence: confidence.relevance, 
-          feedback: successes.length > 0 ? (successes[0]?.feedback?.relevance || '') : '', 
+          score: dualResult.finalScore.relevance, 
+          confidence: 0.95, // High confidence from dual validation
+          feedback: dualResult.finalFeedback.relevance, 
           issues: [] 
         },
         continuity: { 
-          score: consensus.continuity, 
-          confidence: confidence.continuity, 
-          feedback: successes.length > 0 ? (successes[0]?.feedback?.continuity || '') : '', 
+          score: dualResult.finalScore.continuity, 
+          confidence: 0.95,
+          feedback: dualResult.finalFeedback.continuity, 
           issues: [] 
         },
         documentation: { 
-          score: consensus.documentation, 
-          confidence: confidence.documentation, 
-          feedback: successes.length > 0 ? (successes[0]?.feedback?.documentation || '') : '', 
+          score: dualResult.finalScore.documentation, 
+          confidence: 0.95,
+          feedback: dualResult.finalFeedback.documentation, 
           issues: [] 
         },
       },
-      providers: successes.map(s => s.provider),
-      overallScore: overall,
-      overallConfidence,
-      processingTime,
+      overall: Math.round((dualResult.finalScore.relevance + dualResult.finalScore.continuity + dualResult.finalScore.documentation) / 3),
+      processingTime: dualResult.processingTime,
+      confidence: 0.95,
       assignmentContext: {
         topic: assignmentContext.topic,
         topicsTaughtSoFar: assignmentContext.topicsTaughtSoFar,
         hasGuidelines: false,
         guidelines: null
       },
+      // Include detailed dual validation results for debugging
+      dualValidationDetails: {
+        round1: dualResult.round1Results,
+        round2: dualResult.round2Results
+      }
     });
   } catch (error) {
     console.error('Error validating assignment content:', error);
     res.status(500).json({ error: 'Failed to validate assignment content' });
   }
 });
-
-

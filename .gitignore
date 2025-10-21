@@ -13,3 +13,18 @@ dist
 # Scripts directory - contains utility scripts and should not be committed
 scripts/
 
+# Test files and temporary data
+test-*.js
+test-*.mjs
+test-*.html
+test-*.json
+test-*.sh
+admin-token.txt
+
+# Backend temporary files
+apps/backend/*.js
+apps/backend/*.log
+apps/backend/*.crt
+apps/backend/*.key
+!apps/backend/dist/**/*.js
+

@@ -41,8 +41,8 @@ contentRouter.get('/', requireAuth, async (req, res) => {
     const user = req.user!;
     
     let contents;
-    if (user.role === 'ADMIN') {
-      // Admins can see content assigned to them for review
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+      // Admins and Super Admins can see content assigned to them for review
       contents = await prisma.content.findMany({
         where: {
           OR: [
@@ -126,8 +126,8 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
     }
 
     let content;
-    if (user.role === 'ADMIN') {
-      // Admins can see content assigned to them for review or their own content
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+      // Admins and Super Admins can see content assigned to them for review or their own content
       content = await prisma.content.findFirst({
         where: {
           id: contentId,
@@ -185,7 +185,7 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
 });
 
 // Create new content
-contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) => {
+contentRouter.post('/', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const parsed = createContentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -248,7 +248,7 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR']), async (req, res) 
 });
 
 // Submit content for review
-contentRouter.post('/submit', requireAuth, requireRole(['CREATOR']), async (req, res) => {
+contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const { contentId, validationData } = req.body;
     
