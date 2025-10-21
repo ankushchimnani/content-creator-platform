@@ -984,22 +984,11 @@ export async function runDualValidation(content: string, assignmentContext?: Ass
     successes.push(fallback);
   }
 
-  // Consensus: average scores; providers length indicates how many contributed
-  const sum = successes.reduce(
-    (acc, r) => {
-      acc.relevance += r.scores.relevance;
-      acc.continuity += r.scores.continuity;
-      acc.documentation += r.scores.documentation;
-      return acc;
-    },
-    { relevance: 0, continuity: 0, documentation: 0 }
-  );
-
-  const n = successes.length;
+  // Consensus: maximum scores (best score from any provider)
   const consensus: CriteriaScores = {
-    relevance: Math.round(sum.relevance / n),
-    continuity: Math.round(sum.continuity / n),
-    documentation: Math.round(sum.documentation / n),
+    relevance: Math.max(...successes.map(r => r.scores.relevance)),
+    continuity: Math.max(...successes.map(r => r.scores.continuity)),
+    documentation: Math.max(...successes.map(r => r.scores.documentation)),
   };
 
   const overall = Math.round((consensus.relevance + consensus.continuity + consensus.documentation) / 3);
@@ -1048,11 +1037,11 @@ export async function runDualLLMValidation(content: string, assignmentContext?: 
       runGeminiValidation(content, assignmentContext, crossValidationPromptGemini)
     ]);
     
-    // Calculate final averaged scores
+    // Calculate final scores using maximum (best score) from both models
     const finalScore = {
-      relevance: Math.round((openaiResult2.scores.relevance + geminiResult2.scores.relevance) / 2),
-      continuity: Math.round((openaiResult2.scores.continuity + geminiResult2.scores.continuity) / 2),
-      documentation: Math.round((openaiResult2.scores.documentation + geminiResult2.scores.documentation) / 2),
+      relevance: Math.max(openaiResult2.scores.relevance, geminiResult2.scores.relevance),
+      continuity: Math.max(openaiResult2.scores.continuity, geminiResult2.scores.continuity),
+      documentation: Math.max(openaiResult2.scores.documentation, geminiResult2.scores.documentation),
     };
     
     // Combine feedback from both models

@@ -435,7 +435,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                 )}
                 {!sidebarCollapsed && (
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">My Content</h2>
+                    <h2 className="text-lg font-semibold" style={{ textAlign: 'left' }}>My Content</h2>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={startCreating}
@@ -644,9 +644,6 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                   {/* Sample Reference Links - Only for Content Creators */}
                   {user.role === 'CREATOR' && (
                     <div>
-                      <label className="block text-sm font-medium text-text-light mb-2">
-                        Sample Reference
-                      </label>
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                         <div className="flex items-start gap-3">
                           <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -737,7 +734,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-6">
                     <div className="col-span-2">
-                      <h2 className="text-xl font-semibold text-text-light mb-2">{selectedContent.title}</h2>
+                      <h2 className="text-xl font-semibold text-text-light mb-2" style={{ textAlign: 'left' }}>{selectedContent.title}</h2>
                       <div className="flex items-center gap-3 text-sm text-subtle-light">
                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(selectedContent.status)}`}>{selectedContent.status}</span>
                         <span>{selectedContent.wordCount} words</span>

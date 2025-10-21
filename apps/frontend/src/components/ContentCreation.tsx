@@ -497,33 +497,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
               {/* Sample Reference Links - Only for Content Creators */}
               {user.role === 'CREATOR' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sample Reference
-                  </label>
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                    <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-blue-800 mb-1">Need inspiration?</p>
-                        <p className="text-sm text-blue-700 mb-2">
-                          Check out this sample {contentType.replace('_', ' ').toLowerCase()} to understand the expected format and structure:
-                        </p>
-                        <a
-                          href={getSampleReferenceUrl(contentType)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                          View Sample {contentType.replace('_', ' ')}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
+                  
                 </div>
               )}
 
@@ -657,7 +631,7 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                         <p className="text-sm text-green-700">Overall Score: <span className="font-bold text-xl">{validationResult.overallScore || validationResult.overall || 0}/100</span></p>
                       </div>
                     </div>
-                    <div className="text-xs text-green-700 space-y-1">
+                    <div className="text-xs text-green-700 space-y-1 ">
                       <div>Confidence: {validationResult.overallConfidence || validationResult.confidence || 0}%</div>
                       <div>Processing Time: {validationResult.processingTime}ms</div>
                       <div>Providers: {validationResult.providers?.join(', ') || 'Dual LLM'}</div>
@@ -684,26 +658,6 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
                   </div>
 
                   {/* Issues */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="material-icons text-yellow-600">warning</span>
-                      <h4 className="font-semibold text-yellow-900">
-                        {validationResult.criteria.documentation.issues.length > 0 ? 'Issues Found' : 'No Issues'}
-                      </h4>
-                    </div>
-                    {validationResult.criteria.documentation.issues.length > 0 ? (
-                      <div className="space-y-2">
-                        {validationResult.criteria.documentation.issues.map((issue: any, index: number) => (
-                          <div key={index} className="text-sm text-yellow-800 flex items-start gap-2">
-                            <span className="material-icons text-xs mt-0.5">fiber_manual_record</span>
-                            {issue.message}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-yellow-700">Great! No issues were found with your content.</p>
-                    )}
-                  </div>
                 </div>
               )}
             </div>

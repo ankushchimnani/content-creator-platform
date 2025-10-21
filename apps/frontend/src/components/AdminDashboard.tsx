@@ -636,7 +636,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900 mb-2">{selectedContent.title}</h2>
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2" style={{ textAlign: 'left' }}>{selectedContent.title}</h2>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <span>by {selectedContent.author.name}</span>
                         <span>{selectedContent.wordCount} words</span>
