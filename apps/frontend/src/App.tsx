@@ -40,6 +40,35 @@ function App() {
   const [taskData, setTaskData] = useState<any>(null)
   const isAuthed = useMemo(() => !!token && !!user, [token, user])
 
+  // Navigation helper functions
+  const navigateToView = (view: 'dashboard' | 'create-content' | 'settings', taskData?: any) => {
+    setCurrentView(view)
+    setTaskData(taskData || null)
+    
+    // Update URL without causing a page reload
+    const url = new URL(window.location.href)
+    url.hash = ''
+    
+    if (view === 'create-content') {
+      url.hash = '#/create-content'
+      if (taskData) {
+        url.searchParams.set('task', encodeURIComponent(JSON.stringify(taskData)))
+      }
+    } else if (view === 'settings') {
+      url.hash = '#/settings'
+    } else {
+      url.hash = '#/dashboard'
+    }
+    
+    // Use pushState to add to history stack for proper back navigation
+    window.history.pushState(null, '', url.toString())
+  }
+
+  const navigateBack = () => {
+    // Use browser's back functionality
+    window.history.back()
+  }
+
   useEffect(() => {
     apiCall('/health').catch(() => {})
     
@@ -49,11 +78,12 @@ function App() {
       validateStoredToken().finally(() => setIsValidatingToken(false))
     }
 
-    // Handle URL routing
+    // Handle URL routing with proper browser navigation support
     const handleRouteChange = () => {
       const hash = window.location.hash
+      const urlParams = new URLSearchParams(window.location.search)
+      
       if (hash.includes('#/create-content')) {
-        const urlParams = new URLSearchParams(hash.split('?')[1])
         const taskParam = urlParams.get('task')
         if (taskParam) {
           try {
@@ -66,6 +96,7 @@ function App() {
           }
         } else {
           setCurrentView('create-content')
+          setTaskData(null)
         }
       } else if (hash.includes('#/settings')) {
         setCurrentView('settings')
@@ -76,14 +107,16 @@ function App() {
       }
     }
 
-    // Listen for hash changes
+    // Listen for both hash changes and popstate events (browser back/forward)
     window.addEventListener('hashchange', handleRouteChange)
+    window.addEventListener('popstate', handleRouteChange)
     
     // Check initial route
     handleRouteChange()
 
     return () => {
       window.removeEventListener('hashchange', handleRouteChange)
+      window.removeEventListener('popstate', handleRouteChange)
     }
   }, [])
 
@@ -231,21 +264,14 @@ function App() {
           <ContentCreation 
             user={user!} 
             token={token!} 
-            onBack={() => {
-              setCurrentView('dashboard')
-              setTaskData(null)
-              window.location.hash = '#'
-            }}
+            onBack={navigateBack}
             taskData={taskData}
           />
         ) : currentView === 'settings' ? (
           <Settings 
             user={user!} 
             token={token!} 
-            onBack={() => {
-              setCurrentView('dashboard')
-              window.location.hash = '#'
-            }}
+            onBack={navigateBack}
           />
         ) : (
           // Role-based dashboard routing
@@ -267,9 +293,7 @@ function App() {
               token={token!} 
               onLogout={logout}
               onNavigateToContentCreation={(taskData) => {
-                setTaskData(taskData)
-                setCurrentView('create-content')
-                window.location.hash = `#/create-content${taskData ? `?task=${encodeURIComponent(JSON.stringify(taskData))}` : ''}`
+                navigateToView('create-content', taskData)
               }}
             />
           )

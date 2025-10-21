@@ -3,6 +3,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { authRouter } from './routes/auth.js';
@@ -16,6 +17,14 @@ const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
 app.use(pinoHttp({ logger }));
 app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
 app.use(cors({
   origin: [
     'https://content-creators.masaischool.com', 

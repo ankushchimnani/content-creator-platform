@@ -9,12 +9,21 @@ export const assignmentsRouter = Router();
 // Validation schemas
 const createAssignmentSchema = z.object({
   topic: z.string().min(1).max(200),
-  topicsTaughtSoFar: z.array(z.string()).default([]),
-  guidelines: z.string().optional(),
-  contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']).default('LECTURE_NOTE'),
-  difficulty: z.string().optional(), // For ASSIGNMENT type
+  topicsTaughtSoFar: z.array(z.string()).min(1, "At least one prerequisite topic is required for proper validation"),
+  guidelines: z.string().min(10, "Sub-topics must be at least 10 characters for effective validation"),
+  contentType: z.enum(['PRE_READ', 'ASSIGNMENT', 'LECTURE_NOTE']),
+  difficulty: z.string().optional(), // Required for ASSIGNMENT type
   dueDate: z.string().datetime().optional(),
   assignedToId: z.string(),
+}).refine((data) => {
+  // Require difficulty for ASSIGNMENT type
+  if (data.contentType === 'ASSIGNMENT' && !data.difficulty) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Difficulty level is required for ASSIGNMENT content type",
+  path: ["difficulty"]
 });
 
 const updateAssignmentSchema = z.object({

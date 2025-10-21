@@ -53,6 +53,10 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
   const [assignedCreators, setAssignedCreators] = useState<User[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  
+  // Enhanced filtering state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contentTypeFilter, setContentTypeFilter] = useState<'all' | 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'>('all');
 
   // Form state
   const [topic, setTopic] = useState('');
@@ -112,6 +116,44 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
     } catch (error) {
       console.error('Failed to fetch assignments:', error);
     }
+  };
+
+  // Enhanced filtering function
+  const getFilteredTasks = () => {
+    return tasks.filter((assignment) => {
+      // Apply status filter
+      let statusMatch = true;
+      switch (filter) {
+        case 'assigned':
+          statusMatch = assignment.status === 'ASSIGNED';
+          break;
+        case 'review':
+          statusMatch = assignment.content?.status === 'REVIEW';
+          break;
+        case 'rejected':
+          statusMatch = assignment.content?.status === 'REJECTED';
+          break;
+        case 'approved':
+          statusMatch = assignment.content?.status === 'APPROVED';
+          break;
+        case 'all':
+        default:
+          statusMatch = true;
+      }
+
+      // Apply search filter
+      const searchMatch = searchQuery === '' || 
+        assignment.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        assignment.content?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        assignment.assignedTo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        assignment.assignedTo.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+      // Apply content type filter
+      const contentTypeMatch = contentTypeFilter === 'all' || 
+        assignment.contentType === contentTypeFilter;
+
+      return statusMatch && searchMatch && contentTypeMatch;
+    });
   };
 
   const fetchAssignedCreators = async () => {
@@ -317,22 +359,8 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
     return new Date(dateString).toLocaleDateString();
   };
 
-  // Filter tasks based on the filter prop
-  const filteredTasks = tasks.filter((assignment) => {
-    switch (filter) {
-      case 'assigned':
-        return !assignment.content; // No content created yet
-      case 'review':
-        return assignment.content?.status === 'REVIEW';
-      case 'rejected':
-        return assignment.content?.status === 'REJECTED';
-      case 'approved':
-        return assignment.content?.status === 'APPROVED';
-      case 'all':
-      default:
-        return true;
-    }
-  });
+  // Filter tasks based on the filter prop and enhanced filtering
+  const filteredTasks = getFilteredTasks();
 
   return (
     <div className="space-y-6">
@@ -343,62 +371,137 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium text-sm sm:text-base transition-colors flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-          <span className="hidden sm:inline">New Task</span>
           <span className="sm:hidden">+ New</span>
         </button>
       </div>
 
-      {/* Filter Tabs */}
-      {onFilterChange && (
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center gap-2 flex-wrap">
-            {([
-              { key: 'all', label: 'All Tasks' },
-              { key: 'assigned', label: 'Assigned' },
-              { key: 'review', label: 'Review' },
-              { key: 'rejected', label: 'Rejected' },
-              { key: 'approved', label: 'Approved' }
-            ] as const).map(({ key, label }) => {
-              const count = tasks.filter((assignment) => {
-                switch (key) {
-                  case 'assigned':
-                    return !assignment.content; // No content created yet
-                  case 'review':
-                    return assignment.content?.status === 'REVIEW';
-                  case 'rejected':
-                    return assignment.content?.status === 'REJECTED';
-                  case 'approved':
-                    return assignment.content?.status === 'APPROVED';
-                  case 'all':
-                  default:
-                    return true;
-                }
-              }).length;
+      {/* Enhanced Filter Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Search Bar */}
+          <div className="flex-1">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                placeholder="Search by topic, title, or creator name..."
+              />
+            </div>
+          </div>
 
-              return (
-                <button
-                  key={key}
-                  onClick={() => onFilterChange(key)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === key
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  {label}
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                    filter === key
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Content Type Filter */}
+          <div className="lg:w-64">
+            <select
+              value={contentTypeFilter}
+              onChange={(e) => setContentTypeFilter(e.target.value as 'all' | 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE')}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+            >
+              <option value="all">All Types</option>
+              <option value="LECTURE_NOTE">Lecture Notes</option>
+              <option value="PRE_READ">Pre-reads</option>
+              <option value="ASSIGNMENT">Assignments</option>
+            </select>
           </div>
         </div>
-      )}
+
+        {/* Status Filter Tabs */}
+        {onFilterChange && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-700 mr-2" style={{ textAlign: 'left' }}></span>
+                {([
+                  { key: 'all', label: 'All Tasks' },
+                  { key: 'assigned', label: 'Assigned' },
+                  { key: 'review', label: 'Review' },
+                  { key: 'rejected', label: 'Rejected' },
+                  { key: 'approved', label: 'Approved' }
+                ] as const).map(({ key, label }) => {
+                  const count = getFilteredTasks().filter((assignment) => {
+                    switch (key) {
+                      case 'assigned':
+                        return !assignment.content; // No content created yet
+                      case 'review':
+                        return assignment.content?.status === 'REVIEW';
+                      case 'rejected':
+                        return assignment.content?.status === 'REJECTED';
+                      case 'approved':
+                        return assignment.content?.status === 'APPROVED';
+                      case 'all':
+                      default:
+                        return true;
+                    }
+                  }).length;
+
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onFilterChange(key)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        filter === key
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                    >
+                      {label}
+                      <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                        filter === key
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Clear Filters Button */}
+              {(searchQuery || contentTypeFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setContentTypeFilter('all');
+                  }}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* Active Filters Summary */}
+            {(searchQuery || contentTypeFilter !== 'all') && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                <span>Active filters:</span>
+                {searchQuery && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md">
+                    Search: "{searchQuery}"
+                  </span>
+                )}
+                {contentTypeFilter !== 'all' && (
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md">
+                    Type: {contentTypeFilter.replace('_', ' ')}
+                  </span>
+                )}
+                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md">
+                  Showing {filteredTasks.length} of {tasks.length} tasks
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Create/Edit Form */}
       {(isCreating || editingAssignment) && (
@@ -463,7 +566,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
             {contentType === 'ASSIGNMENT' && (
               <div>
                 <label className="block text-sm font-medium text-text-light mb-2">
-                  Difficulty
+                  Difficulty <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={difficulty}
@@ -475,12 +578,15 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                   <option value="MEDIUM">Medium</option>
                   <option value="HARD">Hard</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Required for assignment content type. Determines validation criteria.
+                </p>
               </div>
             )}
 
             <div>
               <label className="block text-sm font-medium text-text-light mb-2">
-                Topics taught so far
+                Topics taught so far <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2 mb-2">
                 <input
@@ -488,7 +594,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                   value={topicsTaughtSoFarInput}
                   onChange={(e) => setTopicsTaughtSoFarInput(e.target.value)}
                   className="flex-1 px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Enter topics separated by commas"
+                  placeholder="Enter topics separated by commas (e.g., HTML, CSS, JavaScript)"
                   onKeyPress={(e) => e.key === 'Enter' && addTopicTaughtSoFar()}
                 />
                 <button
@@ -500,7 +606,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                 </button>
               </div>
               {topicsTaughtSoFar.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-2">
                   {topicsTaughtSoFar.map((topic, index) => (
                     <span
                       key={index}
@@ -518,19 +624,25 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                   ))}
                 </div>
               )}
+              <p className="text-xs text-gray-500">
+                Required for proper LLM validation. Enter at least one prerequisite topic.
+              </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text-light mb-2">
-                Sub-topics (Optional)
+                Sub-topics <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={guidelines}
                 onChange={(e) => setGuidelines(e.target.value)}
                 rows={4}
                 className="w-full px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                placeholder="Provide specific guidelines, requirements, target audience, style preferences, etc."
+                placeholder="Provide specific sub-topics, requirements, target audience, style preferences, etc. (Minimum 10 characters)"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Required for effective LLM validation. Minimum 10 characters. Be specific about requirements.
+              </p>
             </div>
 
             <div>
@@ -544,6 +656,9 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                 className="px-4 py-2 border border-border-light rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
+
+            {/* Validation Summary */}
+            
 
             <div className="flex justify-end gap-3 pt-4">
               <button
@@ -564,7 +679,7 @@ export function AssignmentManager({ user, token, triggerCreate, onCreateConsumed
                     createAssignment();
                   }
                 }}
-                disabled={!topic || !assignedToId}
+                disabled={!topic || !assignedToId || topicsTaughtSoFar.length === 0 || guidelines.length < 10 || (contentType === 'ASSIGNMENT' && !difficulty)}
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300"
               >
                 {editingAssignment ? 'Update Task' : 'Create Task'}

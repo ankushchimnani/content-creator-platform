@@ -106,9 +106,10 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
     )
   }
   
-  const { overallScore, providers, criteria, overallConfidence, processingTime } = result!
-  const qualityLabel = overallScore > 65 ? 'Good' : overallScore >= 90 ? 'Fair' : 'Needs work'
-  const qualityColor = overallScore > 85 ? 'text-green-600' : overallScore >= 70 ? 'text-yellow-600' : 'text-red-600'
+  const { providers, criteria, overallConfidence, processingTime } = result!
+  // Quality assessment (currently unused but available for future use)
+  // const qualityLabel = overallScore > 65 ? 'Good' : overallScore >= 90 ? 'Fair' : 'Needs work'
+  // const qualityColor = overallScore > 85 ? 'text-green-600' : overallScore >= 70 ? 'text-yellow-600' : 'text-red-600'
 
   return (
     <div className="space-y-4 sm:space-y-6">

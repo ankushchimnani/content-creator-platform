@@ -71,19 +71,6 @@ export function Settings({ user, token, onBack }: Props) {
           >
             <span className="material-icons">arrow_back</span>
           </button>
-          <h2 className="text-xl font-bold text-gray-900">Settings</h2>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-            <span className="text-sm font-medium text-orange-600">
-              {currentUser.name.split(' ').map(n => n[0]).join('')}
-            </span>
-          </div>
-          <div className="text-left">
-            <div className="text-sm font-medium text-gray-900">{currentUser.name}</div>
-            <div className="text-xs text-gray-500 capitalize">{currentUser.role.toLowerCase()} Validator</div>
-          </div>
         </div>
       </header>
 

@@ -63,11 +63,13 @@ validateRouter.post('/', requireAuth, async (req, res) => {
 
       if (contentRecord.length > 0) {
         const record = contentRecord[0];
-        assignmentContext = {
-          topic: record.topic,
-          topicsTaughtSoFar: record.topicsTaughtSoFar,
-          contentType: record.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
-        };
+        if (record) {
+          assignmentContext = {
+            topic: record.topic,
+            topicsTaughtSoFar: record.topicsTaughtSoFar,
+            contentType: record.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+          };
+        }
       }
     } catch (error) {
       console.error('Error fetching assignment context:', error);

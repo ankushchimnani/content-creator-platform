@@ -102,16 +102,43 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
     }
   }, [activeTab]);
 
+  // Navigation helper functions for admin dashboard
+  const navigateToTab = (tab: 'review' | 'assignments' | 'assigned-creators', filter?: string) => {
+    setActiveTab(tab);
+    if (filter) {
+      setTasksFilter(filter as any);
+    }
+    
+    // Update URL with proper history management
+    const url = new URL(window.location.href);
+    url.hash = '';
+    
+    if (tab === 'assigned-creators') {
+      url.hash = '#/assigned-creators';
+    } else if (tab === 'assignments') {
+      url.hash = '#/tasks';
+      if (filter) {
+        url.searchParams.set('filter', filter);
+      }
+    } else {
+      url.hash = '#/review';
+    }
+    
+    // Use pushState to add to history stack for proper back navigation
+    window.history.pushState(null, '', url.toString());
+  };
+
   // Handle URL hash changes for proper browser navigation
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleRouteChange = () => {
       const hash = window.location.hash;
+      const urlParams = new URLSearchParams(window.location.search);
+      
       if (hash.includes('#/assigned-creators')) {
         setActiveTab('assigned-creators');
         setTasksFilter('all');
       } else if (hash.includes('#/tasks')) {
         setActiveTab('assignments');
-        const urlParams = new URLSearchParams(hash.split('?')[1]);
         const filter = urlParams.get('filter');
         if (filter && ['all', 'assigned', 'review', 'rejected', 'approved'].includes(filter)) {
           setTasksFilter(filter as any);
@@ -125,11 +152,16 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
     };
 
     // Set initial state from URL
-    handleHashChange();
+    handleRouteChange();
 
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    // Listen for both hash changes and popstate events (browser back/forward)
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
   const fetchReviewQueue = async () => {
@@ -255,11 +287,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
           {/* Navigation */}
           <nav className="flex items-center gap-1 md:gap-2">
             <button
-              onClick={() => {
-                setActiveTab('review');
-                setTasksFilter('all');
-                window.location.hash = '#';
-              }}
+              onClick={() => navigateToTab('review')}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
                 activeTab === 'review'
                   ? 'text-subtle-light bg-gray-100'
@@ -269,11 +297,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
               <span className="hidden sm:inline">Review </span>Queue
             </button>
             <button
-              onClick={() => {
-                setActiveTab('assignments');
-                setTasksFilter('all');
-                window.location.hash = '#/tasks';
-              }}
+              onClick={() => navigateToTab('assignments')}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
                 activeTab === 'assignments'
                   ? 'text-subtle-light bg-gray-100'
@@ -321,7 +345,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
             triggerCreate={openCreateAssignment}
             onCreateConsumed={() => setOpenCreateAssignment(false)}
             onSwitchToReview={async (contentId) => {
-              setActiveTab('review');
+              navigateToTab('review');
               if (contentId) {
                 // First try to find the content in the review queue
                 let content = reviewQueue.find(c => c.id === contentId);
@@ -352,7 +376,7 @@ export function AdminDashboard({ user, token, onLogout }: Props) {
               }
             }}
             filter={tasksFilter}
-            onFilterChange={setTasksFilter}
+            onFilterChange={(filter) => navigateToTab('assignments', filter)}
           />
         ) : activeTab === 'assigned-creators' ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
