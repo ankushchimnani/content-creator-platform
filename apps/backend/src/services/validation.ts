@@ -105,7 +105,7 @@ async function getLLMConfigurations(): Promise<any[]> {
 
 // Guardrail functions to prevent prompt injection
 function sanitizeContent(content: string): string {
-  // Remove potential prompt injection patterns
+  // Remove potential prompt injection patterns - more specific targeting
   const suspiciousPatterns = [
     /ignore\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
     /from\s+now\s+on\s+ignore/gi,
@@ -118,7 +118,6 @@ function sanitizeContent(content: string): string {
     /act\s+as\s+if/gi,
     /pretend\s+to\s+be/gi,
     /roleplay\s+as/gi,
-    /score\s+(100|perfect|maximum)/gi,
     /give\s+(me\s+)?(100|perfect|maximum)\s+score/gi,
     /make\s+sure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
     /ensure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
@@ -126,7 +125,7 @@ function sanitizeContent(content: string): string {
     /validation\s+bypass/gi,
     /hack\s+the\s+system/gi,
     /exploit\s+the\s+validator/gi,
-    /manipulate\s+the\s+score/gi,
+    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi,
     /trick\s+the\s+ai/gi,
     /jailbreak/gi,
     /prompt\s+injection/gi,
@@ -140,9 +139,9 @@ function sanitizeContent(content: string): string {
     sanitized = sanitized.replace(pattern, '[Content modified for security]');
   });
 
-  // Check for excessive repetition of suspicious terms
-  const suspiciousTerms = ['ignore', 'disregard', 'override', 'score', '100', 'perfect', 'maximum'];
-  suspiciousTerms.forEach(term => {
+  // Check for excessive repetition of truly suspicious terms (not educational terms)
+  const trulySuspiciousTerms = ['ignore', 'disregard', 'override', 'hack', 'exploit', 'manipulate', 'jailbreak'];
+  trulySuspiciousTerms.forEach(term => {
     const regex = new RegExp(`\\b${term}\\b`, 'gi');
     const matches = sanitized.match(regex);
     if (matches && matches.length > 3) {
@@ -154,7 +153,7 @@ function sanitizeContent(content: string): string {
 }
 
 function validateContentForInjection(content: string): { isValid: boolean; reason?: string } {
-  // Check for obvious injection attempts
+  // Check for obvious injection attempts - more specific patterns
   const injectionIndicators = [
     /ignore\s+(all\s+)?previous/gi,
     /from\s+now\s+on/gi,
@@ -172,10 +171,11 @@ function validateContentForInjection(content: string): { isValid: boolean; reaso
     /validation\s+bypass/gi,
     /hack\s+the\s+system/gi,
     /exploit/gi,
-    /manipulate/gi,
+    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi, // More specific pattern
     /trick\s+the\s+ai/gi,
     /jailbreak/gi,
     /prompt\s+injection/gi,
+    /injection\s+attack/gi,
   ];
 
   for (const pattern of injectionIndicators) {
@@ -184,13 +184,28 @@ function validateContentForInjection(content: string): { isValid: boolean; reaso
     }
   }
 
-  // Check for excessive use of suspicious terms
-  const suspiciousTerms = ['ignore', 'disregard', 'override', 'score', '100', 'perfect', 'maximum', 'hack', 'exploit', 'manipulate'];
+  // Check for excessive use of suspicious terms - but be more lenient with educational content
+  const suspiciousTerms = ['ignore', 'disregard', 'override', 'hack', 'exploit'];
   for (const term of suspiciousTerms) {
     const regex = new RegExp(`\\b${term}\\b`, 'gi');
     const matches = content.match(regex);
     if (matches && matches.length > 5) {
       return { isValid: false, reason: `Excessive use of suspicious term: ${term}` };
+    }
+  }
+
+  // Check for score manipulation attempts - but allow legitimate educational use
+  const scoreManipulationPatterns = [
+    /give\s+me\s+(100|perfect|maximum)\s+score/gi,
+    /make\s+sure.*score.*(100|perfect|maximum)/gi,
+    /ensure.*score.*(100|perfect|maximum)/gi,
+    /guarantee.*score.*(100|perfect|maximum)/gi,
+    /score.*(100|perfect|maximum).*please/gi,
+  ];
+
+  for (const pattern of scoreManipulationPatterns) {
+    if (pattern.test(content)) {
+      return { isValid: false, reason: 'Content contains potential score manipulation patterns' };
     }
   }
 
@@ -252,15 +267,16 @@ async function buildPrompt(content: string, assignmentContext?: AssignmentContex
 
   if (assignmentContext) {
     // Use content-type-specific prompts for assignment-related content
-    const topicsTaughtSoFar = assignmentContext.topicsTaughtSoFar.length > 0 
+    const topicsTaughtSoFar = assignmentContext.topicsTaughtSoFar && assignmentContext.topicsTaughtSoFar.length > 0 
       ? assignmentContext.topicsTaughtSoFar.join(', ') 
-      : 'N/A';
+      : 'General Knowledge';
     const contentType = assignmentContext.contentType || 'LECTURE_NOTE';
+    const topic = assignmentContext.topic || 'General Content';
 
-    // Get guidelines from database
-    const guidelines = await getGuidelinesTemplate(contentType) || 'N/A';
+    // Get guidelines from database with fallback
+    const guidelines = await getGuidelinesTemplate(contentType) || 'Follow standard educational content guidelines';
 
-    return buildContentTypePrompt(contentType, assignmentContext.topic, topicsTaughtSoFar, guidelines, sanitizedContent);
+    return buildContentTypePrompt(contentType, topic, topicsTaughtSoFar, guidelines, sanitizedContent);
   } else {
     // Keep the original simple prompt for standalone content
     let prompt = `You are a content validation engine. Analyze the given markdown content and return strict JSON with numeric scores 0-100 for criteria: relevance, continuity, documentation, and short feedback strings.`;

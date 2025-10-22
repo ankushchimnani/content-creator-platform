@@ -7,6 +7,33 @@ import { preprocessContent, validateContentStructure } from '../utils/contentPre
 
 export const validateRouter = Router();
 
+// Helper function to extract topic from content for backward compatibility
+function extractTopicFromContent(title: string, content: string): string {
+  // Try to extract topic from title first
+  if (title) {
+    // Remove common prefixes like "LECTURE NOTE:", "ASSIGNMENT:", etc.
+    const cleanTitle = title.replace(/^(LECTURE NOTE|ASSIGNMENT|PRE-READ):\s*/i, '').trim();
+    if (cleanTitle && cleanTitle.length > 0) {
+      return cleanTitle;
+    }
+  }
+  
+  // Try to extract from content headers (markdown headers)
+  const headerMatch = content.match(/^#+\s*(.+)$/m);
+  if (headerMatch && headerMatch[1]) {
+    return headerMatch[1].trim();
+  }
+  
+  // Try to extract from first sentence or paragraph
+  const firstSentence = content.split(/[.!?]/)[0];
+  if (firstSentence && firstSentence.length > 10 && firstSentence.length < 100) {
+    return firstSentence.trim();
+  }
+  
+  // Fallback to generic topic
+  return 'General Content';
+}
+
 const requestSchema = z.object({
   content: z.string()
     .min(1, "Content cannot be empty")
@@ -76,13 +103,25 @@ validateRouter.post('/', requireAuth, async (req, res) => {
     }
   }
 
-  // Fallback assignment context from request parameters
-  if (!assignmentContext && (topic || topicsTaughtSoFar)) {
+  // Enhanced fallback assignment context from request parameters
+  if (!assignmentContext && (topic || topicsTaughtSoFar || contentType)) {
     assignmentContext = {
       topic: topic || 'General Content',
-      topicsTaughtSoFar: topicsTaughtSoFar || [],
+      topicsTaughtSoFar: topicsTaughtSoFar || ['General Knowledge'],
       contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
     };
+    console.log(`Created fallback assignment context from request parameters: ${assignmentContext.topic}`);
+  }
+  
+  // Final fallback: extract topic from content if no context available
+  if (!assignmentContext) {
+    const extractedTopic = extractTopicFromContent('', content);
+    assignmentContext = {
+      topic: extractedTopic,
+      topicsTaughtSoFar: ['General Knowledge'],
+      contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
+    };
+    console.log(`Created final fallback assignment context: ${extractedTopic}`);
   }
 
   const start = Date.now();
@@ -235,8 +274,8 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
         if (assignmentData) {
           assignmentContext = {
             topic: assignmentData.topic,
-            topicsTaughtSoFar: assignmentData.topicsTaughtSoFar,
-            contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+            topicsTaughtSoFar: assignmentData.topicsTaughtSoFar || [],
+            contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
           };
           console.log(`Found assignment context for content ${contentId}: ${assignmentData.topic}`);
         }
@@ -246,6 +285,18 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
     } catch (error) {
       console.error('Error fetching assignment context:', error);
       // Continue without assignment context if there's an error
+    }
+
+    // Enhanced backward compatibility: Create fallback context for older content
+    if (!assignmentContext && content.contentType) {
+      // Extract topic from content title or content itself for older content
+      const extractedTopic = extractTopicFromContent(content.title, content.content);
+      assignmentContext = {
+        topic: extractedTopic,
+        topicsTaughtSoFar: ['General Knowledge'], // Default fallback
+        contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
+      };
+      console.log(`Created fallback assignment context for older content ${contentId}: ${extractedTopic}`);
     }
 
     const start = Date.now();
