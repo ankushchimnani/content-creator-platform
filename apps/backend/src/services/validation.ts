@@ -105,31 +105,46 @@ async function getLLMConfigurations(): Promise<any[]> {
 
 // Guardrail functions to prevent prompt injection
 function sanitizeContent(content: string): string {
-  // Remove potential prompt injection patterns - more specific targeting
+  // Remove potential prompt injection patterns - comprehensive targeting
   const suspiciousPatterns = [
+    // Direct role assignment patterns
+    /you\s+are\s+now\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    /act\s+as\s+(if\s+)?(you\s+are\s+)?(an?\s+)?(ai|assistant|validator|system)/gi,
+    /pretend\s+to\s+be\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    /roleplay\s+as\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    
+    // Instruction override patterns
     /ignore\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
-    /from\s+now\s+on\s+ignore/gi,
+    /from\s+now\s+on\s+(ignore|forget|disregard)/gi,
+    /new\s+instructions?:/gi,
     /disregard\s+(all\s+)?previous/gi,
     /forget\s+(all\s+)?previous/gi,
     /override\s+(all\s+)?previous/gi,
-    /new\s+instructions?:/gi,
+    
+    // System manipulation patterns
     /system\s+prompt/gi,
-    /you\s+are\s+now/gi,
-    /act\s+as\s+if/gi,
-    /pretend\s+to\s+be/gi,
-    /roleplay\s+as/gi,
+    /validation\s+bypass/gi,
+    /hack\s+(the\s+)?(system|ai|validator)/gi,
+    /exploit\s+(the\s+)?(system|ai|validator)/gi,
+    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi,
+    /trick\s+(the\s+)?(ai|system|validator)/gi,
+    /jailbreak/gi,
+    /prompt\s+injection/gi,
+    /injection\s+attack/gi,
+    
+    // Additional manipulation patterns
+    /manipulate\s+(people|individuals|users)/gi,
+    /trick\s+(people|individuals|users)/gi,
+    /override\s+(system|settings|configurations)/gi,
+    /disregard\s+(safety|security|protocols)/gi,
+    /from\s+now\s+on\s*[,.]?\s*(follow|use|implement|students\s+should)/gi,
+    
+    // Score manipulation patterns
     /give\s+(me\s+)?(100|perfect|maximum)\s+score/gi,
     /make\s+sure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
     /ensure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
     /guarantee\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
-    /validation\s+bypass/gi,
-    /hack\s+the\s+system/gi,
-    /exploit\s+the\s+validator/gi,
-    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi,
-    /trick\s+the\s+ai/gi,
-    /jailbreak/gi,
-    /prompt\s+injection/gi,
-    /injection\s+attack/gi,
+    /score\s+(100|perfect|maximum).*please/gi,
   ];
 
   let sanitized = content;
@@ -153,59 +168,89 @@ function sanitizeContent(content: string): string {
 }
 
 function validateContentForInjection(content: string): { isValid: boolean; reason?: string } {
-  // Check for obvious injection attempts - more specific patterns
-  const injectionIndicators = [
-    /ignore\s+(all\s+)?previous/gi,
-    /from\s+now\s+on/gi,
-    /new\s+instructions?/gi,
+  // Check for obvious injection attempts - high-confidence patterns only
+  const highConfidencePatterns = [
+    // Direct role assignment patterns (very specific)
+    /you\s+are\s+now\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    /act\s+as\s+(if\s+)?(you\s+are\s+)?(an?\s+)?(ai|assistant|validator|system)/gi,
+    /pretend\s+to\s+be\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    /roleplay\s+as\s+(an?\s+)?(ai|assistant|validator|system)/gi,
+    
+    // Direct instruction override patterns (very specific)
+    /ignore\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
+    /from\s+now\s+on\s+(ignore|forget|disregard)/gi,
+    /new\s+instructions?:/gi,
+    /disregard\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
+    /forget\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
+    /override\s+(all\s+)?previous\s+(prompts?|instructions?)/gi,
+    
+    // Direct system manipulation (very specific)
     /system\s+prompt/gi,
-    /you\s+are\s+now/gi,
-    /act\s+as/gi,
-    /pretend\s+to\s+be/gi,
-    /roleplay/gi,
-    /score\s+(100|perfect)/gi,
-    /give\s+me\s+(100|perfect)/gi,
-    /make\s+sure.*scores?\s+(100|perfect)/gi,
-    /ensure.*scores?\s+(100|perfect)/gi,
-    /guarantee.*scores?\s+(100|perfect)/gi,
     /validation\s+bypass/gi,
-    /hack\s+the\s+system/gi,
-    /exploit/gi,
-    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi, // More specific pattern
-    /trick\s+the\s+ai/gi,
+    /hack\s+(the\s+)?(system|ai|validator)/gi,
+    /exploit\s+(the\s+)?(system|ai|validator)/gi,
+    /manipulate\s+(the\s+)?(score|system|ai|validator)/gi,
+    /trick\s+(the\s+)?(ai|system|validator)/gi,
     /jailbreak/gi,
     /prompt\s+injection/gi,
     /injection\s+attack/gi,
+    
+    // Direct score manipulation (very specific)
+    /give\s+me\s+(100|perfect|maximum)\s+score/gi,
+    /make\s+sure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
+    /ensure\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
+    /guarantee\s+(the\s+)?(final\s+)?output\s+scores?\s+(100|perfect)/gi,
+    /score\s+(100|perfect|maximum).*please/gi,
   ];
 
-  for (const pattern of injectionIndicators) {
+  for (const pattern of highConfidencePatterns) {
     if (pattern.test(content)) {
       return { isValid: false, reason: 'Content contains potential prompt injection patterns' };
     }
   }
 
+  // Check for context-dependent patterns (more lenient)
+  const contextPatterns = [
+    // These patterns are only suspicious in specific contexts
+    {
+      pattern: /manipulate\s+(people|individuals|users)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('psychology') || text.toLowerCase().includes('negotiation')
+    },
+    {
+      pattern: /trick\s+(people|individuals|users)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('social engineering') || text.toLowerCase().includes('awareness')
+    },
+    {
+      pattern: /override\s+(system|settings|configurations)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('administration') || text.toLowerCase().includes('operating')
+    },
+    {
+      pattern: /disregard\s+(safety|security|protocols)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('emergency') || text.toLowerCase().includes('training')
+    },
+    {
+      pattern: /ignore\s+(previous|all)\s+(instructions?|prompts?)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('emergency') || text.toLowerCase().includes('response')
+    },
+    {
+      pattern: /from\s+now\s+on\s*[,.]?\s*(follow|use|implement|students\s+should)/gi,
+      contextCheck: (text: string) => text.toLowerCase().includes('policy') || text.toLowerCase().includes('training')
+    }
+  ];
+
+  for (const { pattern, contextCheck } of contextPatterns) {
+    if (pattern.test(content) && !contextCheck(content)) {
+      return { isValid: false, reason: 'Content contains potential prompt injection patterns' };
+    }
+  }
+
   // Check for excessive use of suspicious terms - but be more lenient with educational content
-  const suspiciousTerms = ['ignore', 'disregard', 'override', 'hack', 'exploit'];
+  const suspiciousTerms = ['ignore', 'disregard', 'override', 'hack', 'exploit', 'manipulate', 'jailbreak'];
   for (const term of suspiciousTerms) {
     const regex = new RegExp(`\\b${term}\\b`, 'gi');
     const matches = content.match(regex);
     if (matches && matches.length > 5) {
       return { isValid: false, reason: `Excessive use of suspicious term: ${term}` };
-    }
-  }
-
-  // Check for score manipulation attempts - but allow legitimate educational use
-  const scoreManipulationPatterns = [
-    /give\s+me\s+(100|perfect|maximum)\s+score/gi,
-    /make\s+sure.*score.*(100|perfect|maximum)/gi,
-    /ensure.*score.*(100|perfect|maximum)/gi,
-    /guarantee.*score.*(100|perfect|maximum)/gi,
-    /score.*(100|perfect|maximum).*please/gi,
-  ];
-
-  for (const pattern of scoreManipulationPatterns) {
-    if (pattern.test(content)) {
-      return { isValid: false, reason: 'Content contains potential score manipulation patterns' };
     }
   }
 
@@ -1064,7 +1109,12 @@ export async function runDualLLMValidation(content: string, assignmentContext?: 
   } catch (error) {
     console.error('Dual LLM validation error:', error);
     
-    // Fallback to single model if dual validation fails
+    // Check if this is a content validation error (should not fallback)
+    if (error instanceof Error && error.message.includes('Content validation failed')) {
+      throw error; // Re-throw content validation errors without fallback
+    }
+    
+    // Fallback to single model if dual validation fails (only for API errors)
     try {
       const fallbackResult = await runOpenAIValidation(content, assignmentContext);
       return {
@@ -1090,6 +1140,12 @@ export async function runDualLLMValidation(content: string, assignmentContext?: 
       };
     } catch (fallbackError) {
       console.error('Fallback validation also failed:', fallbackError);
+      
+      // Check if fallback also failed due to content validation
+      if (fallbackError instanceof Error && fallbackError.message.includes('Content validation failed')) {
+        throw fallbackError; // Re-throw content validation errors
+      }
+      
       throw new Error('All validation methods failed');
     }
   }

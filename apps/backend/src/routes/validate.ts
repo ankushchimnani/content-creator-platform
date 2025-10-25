@@ -174,7 +174,16 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Unified dual LLM validation failed:', error);
     
-    // Log the error for monitoring
+    // Check if this is a content validation error (should return 400, not 500)
+    if (error instanceof Error && error.message.includes('Content validation failed')) {
+      return res.status(400).json({ 
+        error: 'Content validation failed', 
+        message: error.message,
+        reason: 'Content contains potential prompt injection patterns'
+      });
+    }
+    
+    // Log the error for monitoring (only for actual API errors)
     await prisma.auditLog.create({
       data: {
         userId: req.user!.id,
@@ -187,7 +196,7 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       }
     });
     
-    // Return error response
+    // Return error response for API failures
     res.status(500).json({ 
       error: 'Validation failed', 
       message: error instanceof Error ? error.message : 'Unknown validation error',

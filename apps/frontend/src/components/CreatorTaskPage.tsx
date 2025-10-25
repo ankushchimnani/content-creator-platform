@@ -173,7 +173,7 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
   return (
     <div className="w-full h-full bg-background-light font-sans text-text-light">
       {/* Left Sidebar */}
-      <aside className="fixed left-0 top-0 w-16 h-full bg-gray-800 flex flex-col items-center py-6 z-10">
+      <aside className="fixed left-0 top-0 w-16 h-full bg-gray-800 flex flex-col items-center py-6 z-10 hidden lg:flex">
         {/* Logo */}
         <div className="flex items-center justify-center h-12 w-12 bg-purple-600 rounded-lg mb-8">
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,12 +227,12 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
       </aside>
 
       {/* Main Content */}
-      <div className="ml-16 flex flex-col h-screen">
+      <div className="ml-0 lg:ml-16 flex flex-col h-screen">
         {/* Header */}
-        <header className="bg-surface-light border-b border-border-light px-6 py-4 flex items-center justify-between shadow-sm">
-          <h1 className="text-xl font-bold text-text-light">Content Validation Dashboard</h1>
+        <header className="bg-surface-light border-b border-border-light px-4 lg:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <h1 className="text-lg lg:text-xl font-bold text-text-light">Content Validation Dashboard</h1>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
             <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -255,10 +255,10 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">
           {/* Filter Tabs */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+            <div className="flex flex-wrap items-center gap-2">
               {(['All', 'Assigned', 'In Progress', 'Completed'] as TaskFilter[]).map((filter) => (
                 <button
                   key={filter}
@@ -282,7 +282,7 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
             </div>
 
             {/* Search Bar */}
-            <div className="flex-1 max-w-md ml-auto">
+            <div className="flex-1 max-w-md w-full sm:w-auto sm:ml-auto">
               <div className="relative">
                 <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -321,11 +321,11 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
                     task.status === 'ASSIGNED' || task.status === 'IN_PROGRESS' ? 'hover:border-blue-300' : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
                       {getStatusIcon(task.status)}
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{task.topic}</h3>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 break-words">{task.topic}</h3>
                         <p className="text-sm text-gray-600">
                           {task.status === 'COMPLETED' 
                             ? `Completed on ${formatDate(task.content?.updatedAt || task.updatedAt)}`
@@ -335,12 +335,12 @@ export function CreatorTaskPage({ token, onNavigateToContentCreation, onNavigate
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                         {task.status.replace('_', ' ')}
                       </span>
                       {task.dueDate && (
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 hidden sm:inline">
                           Due: {formatDate(task.dueDate)}
                         </span>
                       )}

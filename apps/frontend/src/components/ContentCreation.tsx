@@ -215,13 +215,9 @@ export function ContentCreation({ user, token, onBack, taskData }: Props) {
         },
         body: JSON.stringify({
           content: content,
-          title: title,
           contentType: contentType,
-          assignmentContext: taskData ? {
-            topic: taskData.topic,
-            topicsTaughtSoFar: taskData.topicsTaughtSoFar,
-            hasGuidelines: !!taskData.guidelines
-          } : undefined
+          topic: taskData?.topic,
+          topicsTaughtSoFar: taskData?.topicsTaughtSoFar || []
         })
       });
 

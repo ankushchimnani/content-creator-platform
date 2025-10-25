@@ -391,7 +391,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
         </div>
       </header>
 
-      <main className="flex-1 p-4 md:p-6">
+      <main className="flex-1 p-4 md:p-6 min-h-0 overflow-hidden">
         {activeTab === 'assignments' ? (
           <div className="w-full">
             <AssignmentTasks 
@@ -413,9 +413,9 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
           />
         ) : (
           <>
-            <div className="flex flex-col lg:flex-row gap-6 h-full">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-full min-h-0">
             {/* Left Sidebar - Content List */}
-            <aside className={`${sidebarCollapsed ? 'lg:w-16' : 'lg:w-80'} w-full lg:flex-shrink-0 flex flex-col gap-6 transition-all duration-300 ease-in-out`}>
+            <aside className={`${sidebarCollapsed ? 'lg:w-16' : 'lg:w-80'} w-full lg:flex-shrink-0 flex flex-col gap-4 lg:gap-6 transition-all duration-300 ease-in-out min-h-0`}>
               <div className="bg-surface-light p-4 rounded-lg shadow-sm flex flex-col gap-4 h-full">
                 {sidebarCollapsed && (
                   <div className="flex flex-col items-center gap-4">
@@ -592,7 +592,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
             </aside>
 
             {/* Center Content Area */}
-            <section className="flex-1 bg-surface-light p-6 rounded-lg shadow-sm min-h-0 flex flex-col">
+            <section className="flex-1 bg-surface-light p-4 lg:p-6 rounded-lg shadow-sm min-h-0 flex flex-col overflow-hidden">
               {isCreating ? (
                 // New Content Creation Form
                 <div className="space-y-6">
@@ -732,17 +732,17 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
               ) : selectedContent ? (
                 // Selected Content View
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="col-span-2">
-                      <h2 className="text-xl font-semibold text-text-light mb-2" style={{ textAlign: 'left' }}>{selectedContent.title}</h2>
-                      <div className="flex items-center gap-3 text-sm text-subtle-light">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                    <div className="lg:col-span-2">
+                      <h2 className="text-lg lg:text-xl font-semibold text-text-light mb-2 break-words">{selectedContent.title}</h2>
+                      <div className="flex flex-wrap items-center gap-2 lg:gap-3 text-sm text-subtle-light">
                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(selectedContent.status)}`}>{selectedContent.status}</span>
                         <span>{selectedContent.wordCount} words</span>
                         <span>{selectedContent.readingTime} min read</span>
                         <span>v{selectedContent.version}</span>
                       </div>
                     </div>
-                    <div className="col-span-1 text-left">
+                    <div className="lg:col-span-1 text-left">
                       {selectedContent.status === 'REJECTED' && !editingContent ? (
                         <button
                           onClick={() => {
@@ -891,14 +891,16 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
                     // Read-only content summary
                     <div className="space-y-2 flex-1 min-h-0 flex flex-col">
                       <div className="bg-white border border-gray-200 rounded-lg flex-1 overflow-auto min-h-0">
-                        <div className="p-4 text-left max-w-none">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeHighlight]}
-                            components={MarkdownComponents}
-                          >
-                            {selectedContent.content}
-                          </ReactMarkdown>
+                        <div className="p-4 text-left max-w-full overflow-x-auto">
+                          <div className="prose prose-sm max-w-none break-words">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeHighlight]}
+                              components={MarkdownComponents}
+                            >
+                              {selectedContent.content}
+                            </ReactMarkdown>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -925,7 +927,7 @@ export function CreatorDashboard({ user, token, onLogout, onNavigateToContentCre
             </section>
 
             {/* Right Validation Panel */}
-            <aside className="w-80">
+            <aside className="w-full lg:w-80 lg:flex-shrink-0">
               <ResultsPanel
                 result={validationResult}
                 onValidate={validateContent}
