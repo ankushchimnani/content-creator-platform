@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,11 +7,175 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  CREATOR
-  REVIEWER
-  ADMIN
-  SUPER_ADMIN
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  User      User?    @relation(fields: [userId], references: [id])
+}
+
+model Content {
+  id                            String             @id @default(cuid())
+  title                         String
+  content                       String
+  status                        ContentStatus      @default(DRAFT)
+  wordCount                     Int                @default(0)
+  readingTime                   Int                @default(0)
+  tags                          String[]
+  category                      String?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime
+  authorId                      String
+  approvedAt                    DateTime?
+  rejectedAt                    DateTime?
+  reviewFeedback                String?
+  reviewedAt                    DateTime?
+  reviewerId                    String?
+  submittedAt                   DateTime?
+  rejectionCount                Int                @default(0)
+  version                       Int                @default(1)
+  contentType                   ContentType        @default(LECTURE_NOTE)
+  difficulty                    String?
+  section                       Section?
+  course                        String?
+  User_Content_authorIdToUser   User               @relation("Content_authorIdToUser", fields: [authorId], references: [id])
+  User_Content_reviewerIdToUser User?              @relation("Content_reviewerIdToUser", fields: [reviewerId], references: [id])
+  ContentAssignment             ContentAssignment?
+  ContentVersion                ContentVersion[]
+  ValidationResult              ValidationResult[]
+}
+
+model ContentAssignment {
+  id                                        String      @id @default(cuid())
+  topic                                     String
+  guidelines                                String?
+  dueDate                                   DateTime?
+  status                                    String      @default("ASSIGNED")
+  assignedById                              String
+  assignedToId                              String
+  contentId                                 String?     @unique
+  createdAt                                 DateTime    @default(now())
+  updatedAt                                 DateTime
+  contentType                               ContentType @default(LECTURE_NOTE)
+  difficulty                                String?
+  topicsTaughtSoFar                         String[]
+  section                                   Section?
+  course                                    String?
+  User_ContentAssignment_assignedByIdToUser User        @relation("ContentAssignment_assignedByIdToUser", fields: [assignedById], references: [id])
+  User_ContentAssignment_assignedToIdToUser User        @relation("ContentAssignment_assignedToIdToUser", fields: [assignedToId], references: [id])
+  Content                                   Content?    @relation(fields: [contentId], references: [id])
+}
+
+model ContentVersion {
+  id        String   @id @default(cuid())
+  contentId String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  Content   Content  @relation(fields: [contentId], references: [id])
+}
+
+model Guideline {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  criteria    Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  createdById String
+  User        User     @relation(fields: [createdById], references: [id])
+}
+
+model GuidelinesTemplate {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  contentType ContentType
+  guidelines  String
+  version     Int         @default(1)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  createdById String
+  User        User        @relation(fields: [createdById], references: [id])
+}
+
+model LLMConfiguration {
+  id          String      @id @default(cuid())
+  provider    LLMProvider
+  modelName   String
+  isActive    Boolean     @default(true)
+  priority    Int         @default(1)
+  temperature Float       @default(0.0)
+  maxTokens   Int?
+  apiEndpoint String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  createdById String
+  User        User        @relation(fields: [createdById], references: [id])
+}
+
+model PromptTemplate {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  contentType ContentType
+  prompt      String
+  version     Int         @default(1)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  createdById String
+  User        User        @relation(fields: [createdById], references: [id])
+}
+
+model User {
+  id                                                     String               @id @default(cuid())
+  email                                                  String               @unique
+  name                                                   String
+  role                                                   Role                 @default(CREATOR)
+  createdAt                                              DateTime             @default(now())
+  lastLogin                                              DateTime?
+  passwordHash                                           String
+  contactNumber                                          String?
+  courseAssigned                                         String[]             @default([])
+  isActive                                               Boolean              @default(true)
+  assignedAdminId                                        String[]             @default([])
+  AuditLog                                               AuditLog[]
+  Content_Content_authorIdToUser                         Content[]            @relation("Content_authorIdToUser")
+  Content_Content_reviewerIdToUser                       Content[]            @relation("Content_reviewerIdToUser")
+  ContentAssignment_ContentAssignment_assignedByIdToUser ContentAssignment[]  @relation("ContentAssignment_assignedByIdToUser")
+  ContentAssignment_ContentAssignment_assignedToIdToUser ContentAssignment[]  @relation("ContentAssignment_assignedToIdToUser")
+  Guideline                                              Guideline[]
+  GuidelinesTemplate                                     GuidelinesTemplate[]
+  LLMConfiguration                                       LLMConfiguration[]
+  PromptTemplate                                         PromptTemplate[]
+  UserSession                                            UserSession[]
+}
+
+model UserSession {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  User      User      @relation(fields: [userId], references: [id])
+}
+
+model ValidationResult {
+  id               String      @id @default(cuid())
+  contentId        String
+  llmProvider      LLMProvider
+  modelVersion     String
+  criteria         Json
+  overallScore     Float
+  processingTimeMs Int
+  createdAt        DateTime    @default(now())
+  Content          Content     @relation(fields: [contentId], references: [id])
 }
 
 enum ContentStatus {
@@ -40,214 +198,14 @@ enum LLMProvider {
   LOCAL
 }
 
-model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  name         String?
-  role         Role          @default(CREATOR)
-  passwordHash String
-  preferences  Json?
-  createdAt    DateTime      @default(now())
-  lastLogin    DateTime?
-
-  // Admin assignment for creators
-  assignedAdminId String?
-  assignedAdmin   User?   @relation("CreatorAdminAssignment", fields: [assignedAdminId], references: [id])
-  assignedCreators User[] @relation("CreatorAdminAssignment")
-
-  // Relations
-  contents     Content[]     @relation("ContentAuthor")
-  reviewedContents Content[] @relation("ContentReviewer")
-  guidelines   Guideline[]   @relation("GuidelineCreatedBy")
-  sessions     UserSession[]
-  auditLogs    AuditLog[]
-  
-  // Assignment relations
-  createdAssignments ContentAssignment[] @relation("AssignmentCreatedBy")
-  assignedTasks      ContentAssignment[] @relation("AssignmentAssignedTo")
-  
-  // Super admin relations
-  createdPrompts     PromptTemplate[]    @relation("PromptCreatedBy")
-  createdLLMConfigs  LLMConfiguration[]  @relation("LLMConfigCreatedBy")
-  createdGuidelines  GuidelinesTemplate[] @relation("GuidelinesCreatedBy")
+enum Role {
+  CREATOR
+  ADMIN
+  SUPER_ADMIN
 }
 
-model Content {
-  id              String            @id @default(cuid())
-  title           String
-  content         String            @db.Text
-  status          ContentStatus     @default(DRAFT)
-  contentType     ContentType       @default(LECTURE_NOTE)
-
-  // Flattened metadata fields from PRD
-  wordCount       Int               @default(0)
-  readingTime     Int               @default(0) // minutes
-  tags            String[]
-  category        String?
-  
-  // Assignment-specific fields
-  difficulty      String?           // For ASSIGNMENT type: EASY, MEDIUM, HARD
-  
-  // Version tracking
-  version         Int               @default(1)
-  rejectionCount  Int               @default(0)
-
-  // Review workflow fields
-  submittedAt     DateTime?
-  reviewedAt      DateTime?
-  approvedAt      DateTime?
-  rejectedAt      DateTime?
-  reviewFeedback  String?           @db.Text
-
-  // Timestamps
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-
-  // Relations
-  author          User              @relation("ContentAuthor", fields: [authorId], references: [id])
-  authorId        String
-  reviewer        User?             @relation("ContentReviewer", fields: [reviewerId], references: [id])
-  reviewerId      String?
-  validationResults ValidationResult[]
-  versions        ContentVersion[]
-  
-  // Assignment relation
-  assignment      ContentAssignment? @relation("AssignmentContent")
-}
-
-model ContentVersion {
-  id        String   @id @default(cuid())
-  contentId String
-  title     String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-
-  contentRef Content @relation(fields: [contentId], references: [id])
-}
-
-model ValidationResult {
-  id            String       @id @default(cuid())
-  contentId     String
-  llmProvider   LLMProvider
-  modelVersion  String
-
-  // Criteria aggregated JSON containing relevance, continuity, documentation results
-  criteria      Json
-
-  overallScore     Float
-  processingTimeMs Int
-  createdAt        DateTime    @default(now())
-
-  contentRef    Content     @relation(fields: [contentId], references: [id])
-}
-
-model Guideline {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-
-  // Criteria JSON containing relevance, continuity, documentation with weights and rules
-  criteria    Json
-
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Creator relation
-  createdById String
-  createdBy   User      @relation("GuidelineCreatedBy", fields: [createdById], references: [id])
-}
-
-model UserSession {
-  id         String   @id @default(cuid())
-  userId     String
-  token      String   @unique
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
-
-  user       User     @relation(fields: [userId], references: [id])
-}
-
-model ContentAssignment {
-  id              String      @id @default(cuid())
-  topic           String      // Topic to be delivered
-  topicsTaughtSoFar String[] // Topics taught till that point
-  guidelines      String?     @db.Text // Optional guidelines
-  contentType     ContentType @default(LECTURE_NOTE) // Type of content to create
-  difficulty      String?     // For ASSIGNMENT type: EASY, MEDIUM, HARD
-  dueDate         DateTime?
-  status          String      @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, COMPLETED, OVERDUE
-  
-  // Relations
-  assignedById    String   // Admin who created the assignment
-  assignedBy      User     @relation("AssignmentCreatedBy", fields: [assignedById], references: [id])
-  assignedToId    String   // Creator assigned to
-  assignedTo      User     @relation("AssignmentAssignedTo", fields: [assignedToId], references: [id])
-  
-  // Optional link to created content
-  contentId       String?  @unique
-  content         Content? @relation("AssignmentContent", fields: [contentId], references: [id])
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  action     String
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  user       User?    @relation(fields: [userId], references: [id])
-}
-
-model PromptTemplate {
-  id          String      @id @default(cuid())
-  name        String      @unique // ASSIGNMENT, LECTURE_NOTE, PRE_READ
-  contentType ContentType
-  prompt      String      @db.Text
-  version     Int         @default(1)
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  // Relations
-  createdById String
-  createdBy   User        @relation("PromptCreatedBy", fields: [createdById], references: [id])
-}
-
-model LLMConfiguration {
-  id           String      @id @default(cuid())
-  provider     LLMProvider
-  modelName    String      // gpt-4o-mini, gemini-pro, etc.
-  isActive     Boolean     @default(true)
-  priority     Int         @default(1) // For ordering multiple models
-  temperature  Float       @default(0.0)
-  maxTokens    Int?
-  apiEndpoint  String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  
-  // Relations
-  createdById String
-  createdBy   User        @relation("LLMConfigCreatedBy", fields: [createdById], references: [id])
-}
-
-model GuidelinesTemplate {
-  id          String      @id @default(cuid())
-  name        String      @unique
-  contentType ContentType
-  guidelines  String      @db.Text
-  version     Int         @default(1)
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  // Relations
-  createdById String
-  createdBy   User        @relation("GuidelinesCreatedBy", fields: [createdById], references: [id])
+enum Section {
+  PRE_ORDER
+  IN_ORDER
+  POST_ORDER
 }

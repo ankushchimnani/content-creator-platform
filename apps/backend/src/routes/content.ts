@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { sendContentSubmissionEmail } from '../services/email.js';
 export const contentRouter = Router();
 
 // Validation schemas
@@ -45,22 +46,16 @@ contentRouter.get('/', requireAuth, async (req, res) => {
       // Admins and Super Admins can see content assigned to them for review
       contents = await prisma.content.findMany({
         where: {
-          OR: [
-            { authorId: user.id },
-            { 
-              status: 'REVIEW',
-              author: { assignedAdminId: user.id }
-            }
-          ]
+          authorId: user.id
         },
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          reviewer: {
+          User_Content_reviewerIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          validationResults: {
+          ValidationResult: {
             orderBy: { createdAt: 'desc' },
             take: 1 // Get the most recent validation result
           }
@@ -72,11 +67,18 @@ contentRouter.get('/', requireAuth, async (req, res) => {
       contents = await prisma.content.findMany({
         where: { authorId: user.id },
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          reviewer: {
+          User_Content_reviewerIdToUser: {
             select: { id: true, name: true, email: true }
+          },
+          ContentAssignment: {
+            include: {
+              User_ContentAssignment_assignedByIdToUser: {
+                select: { id: true, name: true, email: true, contactNumber: true }
+              }
+            }
           }
         },
         orderBy: { updatedAt: 'desc' }
@@ -131,21 +133,16 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
       content = await prisma.content.findFirst({
         where: {
           id: contentId,
-          OR: [
-            { authorId: user.id },
-            { 
-              author: { assignedAdminId: user.id }
-            }
-          ]
+          authorId: user.id
         },
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          reviewer: {
+          User_Content_reviewerIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          validationResults: {
+          ValidationResult: {
             orderBy: { createdAt: 'desc' },
             take: 1 // Get only the most recent validation result
           }
@@ -154,18 +151,18 @@ contentRouter.get('/:id', requireAuth, async (req, res) => {
     } else {
       // Creators can only see their own content
       content = await prisma.content.findFirst({
-        where: { 
+        where: {
           id: contentId,
-          authorId: user.id 
+          authorId: user.id
         },
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          reviewer: {
+          User_Content_reviewerIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          validationResults: {
+          ValidationResult: {
             orderBy: { createdAt: 'desc' },
             take: 1 // Get only the most recent validation result
           }
@@ -211,9 +208,10 @@ contentRouter.post('/', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN']), as
           wordCount,
           readingTime,
           authorId: user.id,
+          updatedAt: new Date(),
         } as any,
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           }
         }
@@ -261,10 +259,27 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN'
     // Check if content exists and user owns it
     const content = await prisma.content.findUnique({
       where: { id: contentId },
-      include: { 
-        author: { 
-          include: { assignedAdmin: true } 
-        } 
+      include: {
+        User_Content_authorIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            assignedAdminId: true
+          }
+        },
+        ContentAssignment: {
+          select: {
+            assignedById: true,
+            User_ContentAssignment_assignedByIdToUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -280,19 +295,23 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN'
       return res.status(400).json({ error: 'Content must be in draft or rejected status to submit' });
     }
 
-    if (!content.author.assignedAdmin) {
-      return res.status(400).json({ error: 'No admin assigned to review your content' });
+    // Get the admin who assigned this task from ContentAssignment
+    if (!content.ContentAssignment || !content.ContentAssignment.assignedById) {
+      return res.status(400).json({ error: 'No assignment found for this content' });
     }
 
-    // Update content status and assign reviewer
+    const assignedByAdminId = content.ContentAssignment.assignedById;
+
+    // Update content status and assign reviewer (use admin who created the assignment)
     const updateData: any = {
       status: 'REVIEW',
       submittedAt: new Date(),
-      reviewerId: content.author.assignedAdminId,
+      reviewerId: assignedByAdminId,
       reviewedAt: null, // Reset review timestamp
       reviewFeedback: null, // Clear previous feedback
       approvedAt: null,
       rejectedAt: null,
+      updatedAt: new Date(),
     };
 
     // If resubmitting after rejection, increment version
@@ -306,10 +325,10 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN'
         where: { id: contentId },
         data: updateData,
         include: {
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          reviewer: {
+          User_Content_reviewerIdToUser: {
             select: { id: true, name: true, email: true }
           }
         }
@@ -334,9 +353,9 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN'
         data: {
           userId: user.id,
           action: 'CONTENT_SUBMITTED',
-          metadata: { 
-            contentId, 
-            reviewerId: content.author.assignedAdminId,
+          metadata: {
+            contentId,
+            reviewerId: assignedByAdminId,
             title: content.title,
             version: updateData.version || content.version,
             hasValidationData: !!validationData
@@ -347,9 +366,32 @@ contentRouter.post('/submit', requireAuth, requireRole(['CREATOR', 'SUPER_ADMIN'
       return updatedContent;
     });
 
-    res.json({ 
-      content: result, 
-      message: 'Content submitted for review successfully' 
+    // Send email notification to the admin who assigned this task
+    try {
+      const assignedByAdmin = content.ContentAssignment.User_ContentAssignment_assignedByIdToUser;
+
+      if (assignedByAdmin && assignedByAdmin.email) {
+        await sendContentSubmissionEmail(
+          assignedByAdmin.email,
+          assignedByAdmin.name,
+          {
+            creatorName: user.name || user.email,
+            contentTitle: content.title,
+            contentType: content.contentType,
+            category: content.category || undefined,
+            wordCount: content.wordCount,
+            submittedAt: new Date().toISOString()
+          }
+        );
+      }
+    } catch (emailError) {
+      // Log email error but don't fail the submission
+      console.error('Failed to send submission email to admin:', emailError);
+    }
+
+    res.json({
+      content: result,
+      message: 'Content submitted for review successfully'
     });
   } catch (error) {
     console.error('Error submitting content:', error);
@@ -385,8 +427,8 @@ contentRouter.post('/:id/review', requireAuth, requireRole(['ADMIN']), async (re
     // Check if content exists and is assigned to this admin
     const content = await prisma.content.findUnique({
       where: { id: contentId },
-      include: { 
-        author: {
+      include: {
+        User_Content_authorIdToUser: {
           select: { id: true, name: true, email: true, assignedAdminId: true }
         }
       }
@@ -396,7 +438,8 @@ contentRouter.post('/:id/review', requireAuth, requireRole(['ADMIN']), async (re
       return res.status(404).json({ error: 'Content not found' });
     }
 
-    if (content.author.assignedAdminId !== user.id) {
+    const authorAdminIds = content.User_Content_authorIdToUser.assignedAdminId;
+    if (!authorAdminIds || !authorAdminIds.includes(user.id)) {
       return res.status(403).json({ error: 'You are not assigned to review this content' });
     }
 
@@ -423,10 +466,10 @@ contentRouter.post('/:id/review', requireAuth, requireRole(['ADMIN']), async (re
       where: { id: contentId },
       data: updateData,
       include: {
-        author: {
+        User_Content_authorIdToUser: {
           select: { id: true, name: true, email: true }
         },
-        reviewer: {
+        User_Content_reviewerIdToUser: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -502,7 +545,7 @@ contentRouter.put('/:id', requireAuth, requireRole(['CREATOR']), async (req: Req
         updatedAt: new Date(),
       },
       include: {
-        author: {
+        User_Content_authorIdToUser: {
           select: { id: true, name: true, email: true }
         }
       }

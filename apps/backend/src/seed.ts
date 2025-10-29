@@ -4,20 +4,39 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Create super admin user
+  const superAdminEmail = 'superadmin@example.com';
+  const existingSuperAdmin = await prisma.user.findUnique({ where: { email: superAdminEmail } });
+
+  if (!existingSuperAdmin) {
+    const passwordHash = await bcrypt.hash('SuperAdmin@123', 10);
+    await prisma.user.create({
+      data: {
+        email: superAdminEmail,
+        name: 'Super Admin',
+        role: Role.SUPER_ADMIN,
+        passwordHash
+      }
+    });
+    console.log('Seeded super admin user: superadmin@example.com / SuperAdmin@123');
+  } else {
+    console.log('Super admin user already exists');
+  }
+
   // Create admin user
   const adminEmail = 'admin@example.com';
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   let adminUser;
-  
+
   if (!existingAdmin) {
     const passwordHash = await bcrypt.hash('Admin@123', 10);
-    adminUser = await prisma.user.create({ 
-      data: { 
-        email: adminEmail, 
-        name: 'Admin User', 
-        role: Role.ADMIN, 
-        passwordHash 
-      } 
+    adminUser = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        name: 'Admin User',
+        role: Role.ADMIN,
+        passwordHash
+      }
     });
     console.log('Seeded admin user: admin@example.com / Admin@123');
   } else {
@@ -73,6 +92,8 @@ async function main() {
   }
 
   console.log('\n🎯 Seed completed!');
+  console.log('🔐 Super Admin:');
+  console.log('   - superadmin@example.com / SuperAdmin@123');
   console.log('👤 Admin Users:');
   console.log('   - admin@example.com / Admin@123');
   console.log('   - admin2@example.com / Admin@123');
