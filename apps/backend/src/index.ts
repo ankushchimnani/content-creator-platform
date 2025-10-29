@@ -12,6 +12,7 @@ import contentRouter from './routes/content.js';
 import adminRouter from './routes/admin.js';
 import { assignmentsRouter } from './routes/assignments.js';
 import { superAdminRouter } from './routes/super-admin.js';
+import { verifyEmailConnection } from './services/email.js';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -30,12 +31,14 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 app.use(cors({
   origin: [
-    'https://content-creators.masaischool.com', 
-    'https://content-api.masaischool.com', 
+    'https://content-creators.masaischool.com',
+    'https://content-api.masaischool.com',
     'http://localhost:5173',  // Vite dev server
+    'http://localhost:5176',  // Vite dev server
     'http://localhost:3000',  // Alternative dev server
     'http://localhost:5174',  // Alternative Vite port
     'http://127.0.0.1:5173',  // Alternative localhost format
+    'http://127.0.0.1:5176',  // Alternative localhost format (port 5174)
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -65,6 +68,9 @@ app.use('/api/assignments', assignmentsRouter);
 app.use('/api/super-admin', superAdminRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, '0.0.0.0', async () => {
   logger.info({ port }, 'Backend listening');
+
+  // Verify email service configuration
+  await verifyEmailConnection();
 });

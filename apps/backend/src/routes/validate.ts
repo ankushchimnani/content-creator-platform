@@ -63,12 +63,7 @@ validateRouter.post('/', requireAuth, async (req, res) => {
   // Preprocess and validate content structure
   const { cleanedContent, warnings, metadata } = preprocessContent(content);
   const structureValidation = validateContentStructure(cleanedContent);
-  
-  // Log preprocessing warnings
-  if (warnings.length > 0) {
-    console.log('Content preprocessing warnings:', warnings);
-  }
-  
+
   // Use cleaned content for validation
   const contentToValidate = cleanedContent;
 
@@ -110,9 +105,8 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       topicsTaughtSoFar: topicsTaughtSoFar || ['General Knowledge'],
       contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
     };
-    console.log(`Created fallback assignment context from request parameters: ${assignmentContext.topic}`);
   }
-  
+
   // Final fallback: extract topic from content if no context available
   if (!assignmentContext) {
     const extractedTopic = extractTopicFromContent('', content);
@@ -121,15 +115,11 @@ validateRouter.post('/', requireAuth, async (req, res) => {
       topicsTaughtSoFar: ['General Knowledge'],
       contentType: contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
     };
-    console.log(`Created final fallback assignment context: ${extractedTopic}`);
   }
 
   const start = Date.now();
-  
+
   try {
-    console.log('Starting unified dual LLM validation');
-    console.log(`Content length: ${contentToValidate.length} characters`);
-    console.log(`Assignment context: ${assignmentContext ? 'Present' : 'Not present'}`);
     
     // Use unified dual LLM validation system
     const dualResult = await runDualLLMValidation(contentToValidate, assignmentContext);
@@ -225,8 +215,10 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
           id: contentId,
           OR: [
             { authorId: user.id },
-            { 
-              author: { assignedAdminId: user.id }
+            {
+              User_Content_authorIdToUser: {
+                assignedAdminId: { has: user.id }
+              }
             }
           ]
         },
@@ -236,7 +228,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
           content: true,
           contentType: true,
           status: true,
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           }
         }
@@ -244,9 +236,9 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
     } else {
       // Creators can only re-validate their own content
       content = await prisma.content.findFirst({
-        where: { 
+        where: {
           id: contentId,
-          authorId: user.id 
+          authorId: user.id
         },
         select: {
           id: true,
@@ -254,7 +246,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
           content: true,
           contentType: true,
           status: true,
-          author: {
+          User_Content_authorIdToUser: {
             select: { id: true, name: true, email: true }
           }
         }
@@ -286,10 +278,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
             topicsTaughtSoFar: assignmentData.topicsTaughtSoFar || [],
             contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE' || 'LECTURE_NOTE'
           };
-          console.log(`Found assignment context for content ${contentId}: ${assignmentData.topic}`);
         }
-      } else {
-        console.log(`No assignment context found for content ${contentId}, proceeding without context`);
       }
     } catch (error) {
       console.error('Error fetching assignment context:', error);
@@ -305,14 +294,9 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
         topicsTaughtSoFar: ['General Knowledge'], // Default fallback
         contentType: content.contentType as 'PRE_READ' | 'ASSIGNMENT' | 'LECTURE_NOTE'
       };
-      console.log(`Created fallback assignment context for older content ${contentId}: ${extractedTopic}`);
     }
 
     const start = Date.now();
-    
-    console.log(`Starting unified dual LLM validation for content ${contentId}`);
-    console.log(`Content length: ${content.content.length} characters`);
-    console.log(`Assignment context: ${assignmentContext ? 'Present' : 'Not present'}`);
     
     // Use unified dual LLM validation system
     const dualResult = await runDualLLMValidation(content.content, assignmentContext);
@@ -330,9 +314,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
       if (dualResult?.round2Results?.gemini) {
         round2Results.push(dualResult.round2Results.gemini);
       }
-      
-      console.log(`Storing ${round2Results.length} validation results`);
-      
+
       for (const result of round2Results) {
         if (result && result.scores) {
           const validationResult = await prisma.validationResult.create({
@@ -369,9 +351,7 @@ validateRouter.post('/:id', requireAuth, async (req, res) => {
         overallScore = Math.round(avgScore);
       }
     }
-    
-    console.log(`Final overall score: ${overallScore}`);
-    
+
     res.json({
       validationResults,
       overallScore,
@@ -405,7 +385,7 @@ validateRouter.post('/assignment/:assignmentId', requireAuth, async (req, res) =
     const assignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId },
       include: {
-        assignedTo: {
+        User_ContentAssignment_assignedToIdToUser: {
           select: { id: true, name: true, email: true }
         }
       }

@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { sendTaskAssignmentEmail } from '../services/email.js';
 
 export const assignmentsRouter = Router();
 
@@ -15,6 +16,8 @@ const createAssignmentSchema = z.object({
   difficulty: z.string().optional(), // Required for ASSIGNMENT type
   dueDate: z.string().datetime().optional(),
   assignedToId: z.string(),
+  section: z.enum(['PRE_ORDER', 'IN_ORDER', 'POST_ORDER']).optional(),
+  course: z.string().optional(),
 }).refine((data) => {
   // Require difficulty for ASSIGNMENT type
   if (data.contentType === 'ASSIGNMENT' && !data.difficulty) {
@@ -35,6 +38,8 @@ const updateAssignmentSchema = z.object({
   dueDate: z.string().datetime().optional(),
   status: z.enum(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE']).optional(),
   assignedToId: z.string().optional(), // Allow changing assigned creator
+  section: z.enum(['PRE_ORDER', 'IN_ORDER', 'POST_ORDER']).optional(),
+  course: z.string().optional(),
 });
 
 // Get all assignments for admin (created by them)
@@ -46,12 +51,12 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
     const assignments = await prisma.contentAssignment.findMany({
       where: { assignedById: adminId },
       include: {
-        assignedTo: {
+        User_ContentAssignment_assignedToIdToUser: {
           select: { id: true, name: true, email: true }
         },
-        content: {
-          include: { 
-            validationResults: {
+        Content: {
+          include: {
+            ValidationResult: {
               orderBy: { createdAt: 'desc' },
               take: 1
             }
@@ -63,9 +68,9 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
 
     // Get all content created by creators assigned to this admin (including unlinked content)
     const assignedCreators = await prisma.user.findMany({
-      where: { 
+      where: {
         role: 'CREATOR',
-        assignedAdminId: adminId
+        assignedAdminId: { has: adminId }
       },
       select: { id: true }
     });
@@ -78,10 +83,10 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
         status: { not: 'DRAFT' } // Only show submitted content to admins
       },
       include: {
-        author: {
+        User_Content_authorIdToUser: {
           select: { id: true, name: true, email: true }
         },
-        validationResults: {
+        ValidationResult: {
           orderBy: { createdAt: 'desc' },
           take: 1
         }
@@ -89,8 +94,17 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
       orderBy: { createdAt: 'desc' }
     });
 
+    // Transform allContent to use expected field names
+    const transformedContent = allContent.map((c: any) => ({
+      ...c,
+      author: c.User_Content_authorIdToUser,
+      validationResults: c.ValidationResult,
+      User_Content_authorIdToUser: undefined,
+      ValidationResult: undefined
+    }));
+
     // Create virtual assignments for unlinked content
-    const unlinkedContent = allContent.filter(content => 
+    const unlinkedContent = transformedContent.filter(content =>
       !assignments.some((assignment: any) => assignment.contentId === content.id)
     );
 
@@ -121,8 +135,17 @@ assignmentsRouter.get('/', requireAuth, requireRole(['ADMIN']), async (req: Requ
       }
     }));
 
+    // Transform assignments to match expected format
+    const transformedAssignments = assignments.map((a: any) => ({
+      ...a,
+      assignedTo: a.User_ContentAssignment_assignedToIdToUser,
+      content: a.Content,
+      User_ContentAssignment_assignedToIdToUser: undefined,
+      Content: undefined
+    }));
+
     // Combine real assignments with virtual assignments
-    const allAssignments = [...assignments, ...virtualAssignments];
+    const allAssignments = [...transformedAssignments, ...virtualAssignments];
 
     res.json({ assignments: allAssignments });
   } catch (error) {
@@ -139,12 +162,12 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
     const assignments = await prisma.contentAssignment.findMany({
       where: { assignedToId: creatorId },
       include: {
-        assignedBy: {
-          select: { id: true, name: true, email: true }
+        User_ContentAssignment_assignedByIdToUser: {
+          select: { id: true, name: true, email: true, contactNumber: true }
         },
-        content: {
+        Content: {
           include: {
-            validationResults: {
+            ValidationResult: {
               orderBy: { createdAt: 'desc' },
               take: 1
             }
@@ -154,7 +177,20 @@ assignmentsRouter.get('/my-tasks', requireAuth, requireRole(['CREATOR']), async 
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ assignments });
+    // Transform assignments to match expected format
+    const transformedAssignments = assignments.map((a: any) => ({
+      ...a,
+      assignedBy: a.User_ContentAssignment_assignedByIdToUser,
+      content: a.Content ? {
+        ...a.Content,
+        validationResults: a.Content.ValidationResult,
+        ValidationResult: undefined
+      } : null,
+      User_ContentAssignment_assignedByIdToUser: undefined,
+      Content: undefined
+    }));
+
+    res.json({ assignments: transformedAssignments });
   } catch (error) {
     console.error('Error fetching creator assignments:', error);
     res.status(500).json({ error: 'Failed to fetch assignments' });
@@ -169,7 +205,7 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
 
-    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, assignedToId } = parsed.data;
+    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, assignedToId, section, course } = parsed.data;
     const adminId = req.user!.id;
 
     // Verify the assigned user exists and is a creator assigned to this admin
@@ -186,9 +222,20 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       return res.status(400).json({ error: 'User is not a creator' });
     }
 
-    if (assignedCreator.assignedAdminId !== adminId) {
+    // Check if assignedAdminId is an array (new structure) or string (old structure)
+    const isAssignedToThisAdmin = Array.isArray(assignedCreator.assignedAdminId)
+      ? assignedCreator.assignedAdminId.includes(adminId)
+      : assignedCreator.assignedAdminId === adminId;
+
+    if (!isAssignedToThisAdmin) {
       return res.status(403).json({ error: 'Creator is not assigned to you' });
     }
+
+    // Get admin details for email
+    const admin = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { name: true }
+    });
 
     // Wrap assignment creation and audit logging in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -203,12 +250,15 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
           dueDate: dueDate ? new Date(dueDate) : null,
           assignedById: adminId,
           assignedToId,
+          section: section || null,
+          course: course || null,
+          updatedAt: new Date(),
         },
         include: {
-          assignedTo: {
+          User_ContentAssignment_assignedToIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          assignedBy: {
+          User_ContentAssignment_assignedByIdToUser: {
             select: { id: true, name: true, email: true }
           }
         }
@@ -219,11 +269,13 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
         data: {
           userId: adminId,
           action: 'ASSIGNMENT_CREATED',
-          metadata: { 
-            assignmentId: assignment.id, 
+          metadata: {
+            assignmentId: assignment.id,
             topic: assignment.topic,
             assignedToId,
-            assignedToName: assignedCreator.name
+            assignedToName: assignedCreator.name,
+            section: section || 'N/A',
+            course: course || 'N/A'
           }
         }
       });
@@ -231,7 +283,33 @@ assignmentsRouter.post('/', requireAuth, requireRole(['ADMIN']), async (req: Req
       return assignment;
     });
 
-    res.status(201).json({ assignment: result });
+    // Transform response to match expected format
+    const transformedResult = {
+      ...result,
+      assignedTo: (result as any).User_ContentAssignment_assignedToIdToUser,
+      assignedBy: (result as any).User_ContentAssignment_assignedByIdToUser,
+    };
+
+    // Send email notification to creator (async, don't wait for it)
+    if (section && course) {
+      sendTaskAssignmentEmail(
+        assignedCreator.email,
+        assignedCreator.name,
+        {
+          topic,
+          contentType,
+          course,
+          section,
+          dueDate: dueDate || undefined,
+          assignedByName: admin?.name || 'Admin'
+        }
+      ).catch((error) => {
+        console.error('❌ Failed to send task assignment email:', error);
+        // Don't fail the request if email fails
+      });
+    }
+
+    res.status(201).json({ assignment: transformedResult });
   } catch (error) {
     console.error('Error creating assignment:', error);
     
@@ -261,12 +339,12 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     // Check if assignment exists and belongs to this admin
     const existingAssignment = await prisma.contentAssignment.findUnique({
       where: { id: assignmentId as string },
-      select: { 
-        id: true, 
-        assignedById: true, 
-        status: true, 
+      select: {
+        id: true,
+        assignedById: true,
+        status: true,
         assignedToId: true,
-        content: {
+        Content: {
           select: { status: true }
         }
       }
@@ -281,7 +359,7 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     }
 
     // Check if assignment is completed (cannot edit completed tasks)
-    const effectiveStatus = existingAssignment.content?.status || existingAssignment.status;
+    const effectiveStatus = existingAssignment.Content?.status || existingAssignment.status;
     const isCompleted = effectiveStatus === 'APPROVED' || effectiveStatus === 'COMPLETED';
     
     if (isCompleted) {
@@ -291,18 +369,20 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
       });
     }
 
-    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, status, assignedToId } = parsed.data;
+    const { topic, topicsTaughtSoFar, guidelines, contentType, difficulty, dueDate, status, assignedToId, section, course } = parsed.data;
     
     // If changing assignedToId, validate that the new creator exists and is assigned to this admin
     if (assignedToId && assignedToId !== existingAssignment.assignedToId) {
       const newCreator = await prisma.user.findFirst({
-        where: { 
+        where: {
           id: assignedToId,
           role: 'CREATOR',
-          assignedAdminId: adminId
+          assignedAdminId: {
+            has: adminId
+          }
         }
       });
-      
+
       if (!newCreator) {
         return res.status(400).json({ error: 'Invalid creator assignment. Creator must be assigned to you.' });
       }
@@ -321,21 +401,24 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
           ...(dueDate && { dueDate: new Date(dueDate) }),
           ...(status && { status }),
           ...(assignedToId && { assignedToId }),
+          ...(section !== undefined && { section: section || null }),
+          ...(course !== undefined && { course: course || null }),
+          updatedAt: new Date(), // Required field in schema
         },
         include: {
-          assignedTo: {
+          User_ContentAssignment_assignedToIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          assignedBy: {
+          User_ContentAssignment_assignedByIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          content: {
-            select: { 
-              id: true, 
-              title: true, 
-              status: true, 
+          Content: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
               createdAt: true,
-              updatedAt: true 
+              updatedAt: true
             }
           }
         }
@@ -357,10 +440,23 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
       return updatedAssignment;
     });
 
-    res.json({ assignment: result });
+    // Transform result to match expected format
+    const transformedResult = {
+      ...result,
+      assignedTo: (result as any).User_ContentAssignment_assignedToIdToUser,
+      assignedBy: (result as any).User_ContentAssignment_assignedByIdToUser,
+      content: (result as any).Content,
+      User_ContentAssignment_assignedToIdToUser: undefined,
+      User_ContentAssignment_assignedByIdToUser: undefined,
+      Content: undefined
+    };
+
+    res.json({ assignment: transformedResult });
   } catch (error) {
     console.error('Error updating assignment:', error);
-    
+    console.error('Error message:', (error as Error).message);
+    console.error('Error stack:', (error as Error).stack);
+
     // Handle specific database errors
     if ((error as any)?.code === 'P2002') {
       return res.status(409).json({ error: 'Assignment update conflicts with existing data' });
@@ -368,8 +464,11 @@ assignmentsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: R
     if ((error as any)?.code === 'P2025') {
       return res.status(404).json({ error: 'Assignment not found' });
     }
-    
-    res.status(500).json({ error: 'Failed to update assignment' });
+
+    res.status(500).json({
+      error: 'Failed to update assignment',
+      details: (error as Error).message
+    });
   }
 });
 
@@ -427,7 +526,18 @@ assignmentsRouter.post('/:id/start', requireAuth, requireRole(['CREATOR']), asyn
       return updatedAssignment;
     });
 
-    res.json({ assignment: result });
+    // Transform result to match expected format
+    const transformedResult = {
+      ...result,
+      assignedTo: (result as any).User_ContentAssignment_assignedToIdToUser,
+      assignedBy: (result as any).User_ContentAssignment_assignedByIdToUser,
+      content: (result as any).Content,
+      User_ContentAssignment_assignedToIdToUser: undefined,
+      User_ContentAssignment_assignedByIdToUser: undefined,
+      Content: undefined
+    };
+
+    res.json({ assignment: transformedResult });
   } catch (error) {
     console.error('Error starting assignment:', error);
     
@@ -493,19 +603,19 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
           status: 'COMPLETED'
         },
         include: {
-          assignedTo: {
+          User_ContentAssignment_assignedToIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          assignedBy: {
+          User_ContentAssignment_assignedByIdToUser: {
             select: { id: true, name: true, email: true }
           },
-          content: {
-            select: { 
-              id: true, 
-              title: true, 
-              status: true, 
+          Content: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
               createdAt: true,
-              updatedAt: true 
+              updatedAt: true
             }
           }
         }
@@ -543,7 +653,18 @@ assignmentsRouter.post('/:id/link-content', requireAuth, requireRole(['CREATOR']
       return updatedAssignment;
     });
 
-    res.json({ assignment: result });
+    // Transform result to match expected format
+    const transformedResult = {
+      ...result,
+      assignedTo: (result as any).User_ContentAssignment_assignedToIdToUser,
+      assignedBy: (result as any).User_ContentAssignment_assignedByIdToUser,
+      content: (result as any).Content,
+      User_ContentAssignment_assignedToIdToUser: undefined,
+      User_ContentAssignment_assignedByIdToUser: undefined,
+      Content: undefined
+    };
+
+    res.json({ assignment: transformedResult });
   } catch (error) {
     console.error('Error linking content to assignment:', error);
     
@@ -618,3 +739,5 @@ assignmentsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req
     res.status(500).json({ error: 'Failed to delete assignment' });
   }
 });
+
+

@@ -61,33 +61,33 @@ export function EditorSplit({ value, onChange }: Props) {
   return (
     <div className="space-y-4">
       {/* Editor Content - Mobile responsive split view */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
         <div className="flex flex-col md:flex-row h-[600px] md:h-[400px]">
           {/* Editor Pane */}
           <div className="flex-1 flex flex-col min-h-[300px] md:min-h-0">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-left">
-              <span className="text-sm font-medium text-gray-700">MARKDOWN EDITOR</span>
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-600 text-left">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">MARKDOWN EDITOR</span>
             </div>
             <textarea
               ref={editorTextareaRef}
-              className="flex-1 p-4 border-none outline-none resize-none font-mono text-sm text-gray-900 placeholder-gray-500"
+              className="flex-1 p-4 border-none outline-none resize-none font-mono text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-gray-900"
               placeholder="Start writing your content here..."
               value={value}
               onChange={(e) => onChange(e.target.value)}
               onScroll={handleEditorScroll}
-              style={{ 
+              style={{
                 textAlign: 'left',
                 direction: 'ltr'
               }}
             />
           </div>
-          
+
           {/* Preview Pane */}
-          <div ref={previewRef} className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 min-h-[300px] md:min-h-0">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex-shrink-0 text-left">
-              <span className="text-sm font-medium text-gray-700">LIVE PREVIEW</span>
+          <div ref={previewRef} className="flex-1 flex flex-col border-t md:border-t-0 md:border-l border-gray-300 dark:border-gray-600 min-h-[300px] md:min-h-0">
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-600 flex-shrink-0 text-left">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">LIVE PREVIEW</span>
             </div>
-            <div className="flex-1 overflow-auto bg-white min-h-0">
+            <div className="flex-1 overflow-auto bg-white dark:bg-gray-900 min-h-0">
               {value ? (
                 <div className="p-4 text-left max-w-none">
                   <ReactMarkdown
@@ -99,7 +99,7 @@ export function EditorSplit({ value, onChange }: Props) {
                   </ReactMarkdown>
                 </div>
               ) : (
-                <div className="text-gray-500 text-left py-8">
+                <div className="text-gray-500 dark:text-gray-400 text-left py-8">
                   <div className="text-lg mb-2">Start writing...</div>
                   <div className="text-sm">Your formatted content will appear here as you type.</div>
                 </div>

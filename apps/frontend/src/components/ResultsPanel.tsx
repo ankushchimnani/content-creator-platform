@@ -27,22 +27,22 @@ type Props = {
 export function ResultsPanel({ result, onValidate, isValidating, validationError }: Props) {
   if (!result && !isValidating && !validationError) {
     return (
-      <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">Validation Dashboard</h2>
-        
-        <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-left">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-3">
-            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Validation Dashboard</h2>
+
+        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-left">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-700 mb-3">
+            <svg className="w-6 h-6 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-sm text-gray-600">Write content and click "Validate Content" to see results</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Write content and click "Validate Content" to see results</p>
         </div>
-        
-        <button 
+
+        <button
           onClick={onValidate}
           disabled={isValidating}
-          className="w-full bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-700 disabled:bg-gray-400 transition-colors"
+          className="w-full bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-700 dark:hover:bg-gray-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -58,18 +58,18 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
   if (isValidating) {
     return (
       <div className="space-y-6">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Validation Dashboard</h2>
+        <div className="rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Validation Dashboard</h2>
           <div className="text-left py-8">
-            <div className="animate-spin w-12 h-12 mx-auto mb-4 text-blue-600">
+            <div className="animate-spin w-12 h-12 mx-auto mb-4 text-blue-600 dark:text-blue-400">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            <p className="text-blue-600 font-medium mb-2">Validating Content...</p>
-            <p className="text-gray-500 text-sm">Running dual-LLM analysis for comprehensive validation</p>
-            <div className="mt-4 bg-gray-100 rounded-full h-2">
-              <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+            <p className="text-blue-600 dark:text-blue-400 font-medium mb-2">Validating Content...</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Running dual-LLM analysis for comprehensive validation</p>
+            <div className="mt-4 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+              <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
             </div>
           </div>
         </div>
@@ -80,21 +80,21 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
   if (validationError) {
     return (
       <div className="space-y-6">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4 text-red-800">Validation Error</h2>
+        <div className="rounded-lg border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 text-red-800 dark:text-red-300">Validation Error</h2>
           <div className="text-left py-4">
-            <div className="text-red-500 mb-2">
+            <div className="text-red-500 dark:text-red-400 mb-2">
               <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <p className="text-red-700 font-medium mb-1">Validation Failed</p>
-            <p className="text-red-600 text-sm">{validationError}</p>
+            <p className="text-red-700 dark:text-red-300 font-medium mb-1">Validation Failed</p>
+            <p className="text-red-600 dark:text-red-400 text-sm">{validationError}</p>
           </div>
-          
-          <button 
+
+          <button
             onClick={onValidate}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 mt-4"
+            className="w-full bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 mt-4"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -113,19 +113,19 @@ export function ResultsPanel({ result, onValidate, isValidating, validationError
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 shadow-sm">
+      <div className="rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-          <h2 className="text-base sm:text-lg font-semibold">Validation Dashboard</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Validation Dashboard</h2>
           {processingTime && (
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
               {(processingTime / 1000).toFixed(1)}s
             </span>
           )}
         </div>
-        
+
         {/* Dual LLM Provider Info */}
         {providers && providers.length > 0 && (
-          <div className="mb-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-300 dark:border-blue-800">
             <div className="flex items-center gap-2 mb-2">
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />

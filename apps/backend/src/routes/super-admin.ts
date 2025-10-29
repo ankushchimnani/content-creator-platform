@@ -6,6 +6,7 @@ import { runDualLLMValidation, type AssignmentContext } from '../services/valida
 import bcrypt from 'bcryptjs';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
+import { sendCredentialsEmail } from '../services/email.js';
 
 export const superAdminRouter = Router();
 
@@ -20,6 +21,15 @@ const requireSuperAdmin = (req: any, res: any, next: any) => {
 // Apply auth and super admin middleware to all routes
 superAdminRouter.use(requireAuth);
 superAdminRouter.use(requireSuperAdmin);
+
+// Helper function to generate default password from name
+function generateDefaultPassword(name: string): string {
+  // Extract first name (everything before first space)
+  const firstName = name.trim().split(' ')[0];
+  // Capitalize first letter
+  const capitalizedFirstName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+  return `${capitalizedFirstName}@123`;
+}
 
 // Validation schemas
 const promptTemplateSchema = z.object({
@@ -38,9 +48,12 @@ const llmConfigSchema = z.object({
 });
 
 const userCreateSchema = z.object({
+  name: z.string().min(1),
   email: z.string().email(),
-  role: z.enum(['CREATOR', 'REVIEWER', 'ADMIN']),
-  adminMapped: z.string().optional(), // Admin email for creators
+  contactNumber: z.string().optional(),
+  role: z.enum(['CREATOR', 'REVIEWER', 'ADMIN', 'SUPER_ADMIN']),
+  courseAssigned: z.string().optional(),
+  admins: z.string().optional(), // Comma-separated admin emails for creators
 });
 
 const promptTestSchema = z.object({
@@ -244,7 +257,7 @@ superAdminRouter.get('/prompts', async (req, res) => {
   try {
     const prompts = await prisma.promptTemplate.findMany({
       include: {
-        createdBy: {
+        User: {
           select: { name: true, email: true }
         }
       },
@@ -370,13 +383,20 @@ superAdminRouter.get('/guidelines', async (req, res) => {
   try {
     const guidelines = await prisma.guidelinesTemplate.findMany({
       include: {
-        createdBy: {
+        User: {
           select: { name: true, email: true }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json({ guidelines });
+
+    // Transform the data to match frontend expectations
+    const transformedGuidelines = guidelines.map(g => ({
+      ...g,
+      createdBy: g.User
+    }));
+
+    res.json({ guidelines: transformedGuidelines });
   } catch (error) {
     console.error('Error fetching guidelines:', error);
     res.status(500).json({ error: 'Failed to fetch guidelines' });
@@ -407,15 +427,22 @@ superAdminRouter.post('/guidelines', async (req, res) => {
         guidelines,
         createdById: req.user!.id,
         isActive: true,
+        updatedAt: new Date(),
       },
       include: {
-        createdBy: {
+        User: {
           select: { name: true, email: true }
         }
       }
     });
-    
-    res.json({ guidelines: newGuidelines });
+
+    // Transform the response to match frontend expectations
+    const response = {
+      ...newGuidelines,
+      createdBy: newGuidelines.User
+    };
+
+    res.json({ guidelines: response });
   } catch (error) {
     console.error('Error creating guidelines:', error);
     res.status(500).json({ error: 'Failed to create guidelines' });
@@ -442,13 +469,19 @@ superAdminRouter.put('/guidelines/:id', async (req, res) => {
         updatedAt: new Date(),
       },
       include: {
-        createdBy: {
+        User: {
           select: { name: true, email: true }
         }
       }
     });
-    
-    res.json({ guidelines: updatedGuidelines });
+
+    // Transform the response to match frontend expectations
+    const response = {
+      ...updatedGuidelines,
+      createdBy: updatedGuidelines.User
+    };
+
+    res.json({ guidelines: response });
   } catch (error) {
     console.error('Error updating guidelines:', error);
     res.status(500).json({ error: 'Failed to update guidelines' });
@@ -607,15 +640,12 @@ superAdminRouter.get('/users', requireSuperAdmin, async (req, res) => {
         id: true,
         email: true,
         name: true,
+        contactNumber: true,
         role: true,
-        createdAt: true,
-        assignedAdmin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          }
-        }
+        courseAssigned: true,
+        isActive: true,
+        assignedAdminId: true,
+        createdAt: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -635,57 +665,77 @@ superAdminRouter.get('/users', requireSuperAdmin, async (req, res) => {
 // Create individual user
 superAdminRouter.post('/users/create', requireSuperAdmin, async (req, res) => {
   try {
-    const { email, role, password, adminMapped } = req.body;
-    
-    // Validate required fields
-    if (!email || !role || !password) {
-      return res.status(400).json({ error: 'Email, role, and password are required' });
+    const { name, email, contactNumber, role, courseAssigned, adminMapped } = req.body;
+
+    // Validate required fields (password is auto-generated)
+    if (!name || !email || !role) {
+      return res.status(400).json({ error: 'Name, email, and role are required' });
     }
-    
-    // Validate password length
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-    }
-    
+
     // Validate role
     if (!['CREATOR', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
-    
+
+    // Validate course requirement for CREATOR
+    if (role === 'CREATOR' && !courseAssigned) {
+      return res.status(400).json({ error: 'Course is required for creators' });
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     });
-    
+
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
-    
-    // Hash the provided password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Find admin if adminMapped is provided
-    let assignedAdminId = null;
+
+    // Generate default password from first name (e.g., "John" -> "John@123")
+    const defaultPassword = generateDefaultPassword(name);
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Build assignedAdminId array
+    let assignedAdminIds: string[] = [];
     if (adminMapped && role === 'CREATOR') {
-      const admin = await prisma.user.findUnique({
-        where: { email: adminMapped }
+      // adminMapped can be either a string (single email) or array of emails
+      const adminEmails = Array.isArray(adminMapped) ? adminMapped : [adminMapped];
+
+      // Fetch all admins by email
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          email: { in: adminEmails.filter(email => email) }, // Filter out empty strings
+          role: 'ADMIN'
+        },
+        select: { id: true }
       });
-      if (admin && admin.role === 'ADMIN') {
-        assignedAdminId = admin.id;
-      }
+
+      assignedAdminIds = adminUsers.map(admin => admin.id);
     }
-    
+
+    // Parse courseAssigned - can be comma-separated or single value
+    let courseArray: string[] = [];
+    if (courseAssigned && role === 'CREATOR') {
+      // Split by comma and trim, support both single and multiple courses
+      courseArray = courseAssigned.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+    }
+
     // Create user
     const newUser = await prisma.user.create({
       data: {
+        name,
         email,
-        name: email.split('@')[0], // Use email prefix as default name
+        contactNumber: contactNumber || null,
         passwordHash: hashedPassword,
         role: role as any,
-        assignedAdminId,
+        courseAssigned: courseArray,
+        assignedAdminId: assignedAdminIds,
+        isActive: true, // Default to active
       }
     });
-    
+
     res.json({
       success: true,
       user: {
@@ -693,12 +743,177 @@ superAdminRouter.post('/users/create', requireSuperAdmin, async (req, res) => {
         email: newUser.email,
         name: newUser.name,
         role: newUser.role,
-      }
+        courseAssigned: newUser.courseAssigned,
+        contactNumber: newUser.contactNumber,
+        isActive: newUser.isActive,
+      },
+      defaultPassword // Return the generated password so frontend can show it
     });
-    
+
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// Update user
+superAdminRouter.put('/users/:userId', requireSuperAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, contactNumber, role, courseAssigned, adminMapped, isActive } = req.body;
+
+    // Validate required fields
+    if (!name || !role || isActive === undefined) {
+      return res.status(400).json({ error: 'Name, role, and status are required' });
+    }
+
+    // Validate role
+    if (!['CREATOR', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Validate course requirement for CREATOR
+    if (role === 'CREATOR' && !courseAssigned) {
+      return res.status(400).json({ error: 'Course is required for creators' });
+    }
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Build assignedAdminId array
+    let assignedAdminIds: string[] = [];
+    if (adminMapped && role === 'CREATOR') {
+      // adminMapped can be either a string (single email) or array of emails
+      const adminEmails = Array.isArray(adminMapped) ? adminMapped : [adminMapped];
+
+      // Fetch all admins by email
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          email: { in: adminEmails.filter(email => email) }, // Filter out empty strings
+          role: 'ADMIN'
+        },
+        select: { id: true }
+      });
+
+      assignedAdminIds = adminUsers.map(admin => admin.id);
+    }
+
+    // Parse courseAssigned - can be comma-separated or single value
+    let courseArray: string[] = [];
+    if (courseAssigned && role === 'CREATOR') {
+      // Split by comma and trim, support both single and multiple courses
+      courseArray = courseAssigned.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        contactNumber: contactNumber || null,
+        role: role as any,
+        courseAssigned: role === 'CREATOR' ? courseArray : [],
+        assignedAdminId: role === 'CREATOR' ? assignedAdminIds : [],
+        isActive,
+      }
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        courseAssigned: updatedUser.courseAssigned,
+        contactNumber: updatedUser.contactNumber,
+        isActive: updatedUser.isActive,
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Send credentials email to user
+superAdminRouter.post('/users/:userId/send-credentials', requireSuperAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Get user details
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        courseAssigned: true,
+        assignedAdminId: true,
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate the default password from user's name (firstname@123)
+    const defaultPassword = generateDefaultPassword(user.name);
+
+    // Get all assigned admins' details
+    let admins: Array<{ name: string; contact?: string }> = [];
+
+    if (user.assignedAdminId && user.assignedAdminId.length > 0) {
+      // Fetch all assigned admins
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          id: { in: user.assignedAdminId },
+          role: 'ADMIN'
+        },
+        select: {
+          name: true,
+          contactNumber: true,
+        }
+      });
+
+      admins = adminUsers.map(admin => ({
+        name: admin.name,
+        contact: admin.contactNumber || undefined
+      }));
+    }
+
+    // Send email with all details
+    await sendCredentialsEmail(
+      user.email,
+      user.name,
+      defaultPassword,
+      user.role,
+      user.courseAssigned && user.courseAssigned.length > 0 ? user.courseAssigned : undefined,
+      admins
+    );
+
+    // Optionally: Clear temporary password after sending
+    // await prisma.user.update({
+    //   where: { id: userId },
+    //   data: { temporaryPassword: null }
+    // });
+
+    res.json({
+      success: true,
+      message: 'Credentials email sent successfully'
+    });
+
+  } catch (error) {
+    console.error('Error sending credentials email:', error);
+    res.status(500).json({ error: 'Failed to send credentials email' });
   }
 });
 
@@ -722,9 +937,12 @@ superAdminRouter.post('/users/bulk-create', async (req, res) => {
         .on('data', (row: any) => {
           try {
             const userData = userCreateSchema.parse({
+              name: row.name?.trim(),
               email: row.email?.trim(),
+              contactNumber: row.contactNumber?.trim() || undefined,
               role: row.role?.trim().toUpperCase(),
-              adminMapped: row.admin_mapped?.trim() || undefined,
+              courseAssigned: row.courseAssigned?.trim() || undefined,
+              admins: row.admins?.trim() || undefined,
             });
             users.push(userData);
           } catch (error) {
@@ -756,63 +974,80 @@ superAdminRouter.post('/users/bulk-create', async (req, res) => {
         const existingUser = await prisma.user.findUnique({
           where: { email: userData.email }
         });
-        
+
         if (existingUser) {
           results.errors.push(`User with email ${userData.email} already exists`);
           continue;
         }
-        
-        // Find admin if specified
-        let assignedAdminId = undefined;
-        if (userData.role === 'CREATOR' && userData.adminMapped) {
-          const admin = await prisma.user.findFirst({
-            where: { 
-              email: userData.adminMapped,
-              role: 'ADMIN'
+
+        // Find admins if specified (handle multiple admins separated by commas)
+        let assignedAdminIds: string[] = [];
+        if (userData.role === 'CREATOR' && userData.admins) {
+          // Split by comma and trim each email
+          const adminEmails = userData.admins.split(',').map(email => email.trim()).filter(email => email);
+
+          if (adminEmails.length > 0) {
+            const adminUsers = await prisma.user.findMany({
+              where: {
+                email: { in: adminEmails },
+                role: 'ADMIN'
+              },
+              select: { id: true, email: true }
+            });
+
+            if (adminUsers.length !== adminEmails.length) {
+              const foundEmails = adminUsers.map(a => a.email);
+              const notFoundEmails = adminEmails.filter(e => !foundEmails.includes(e));
+              results.errors.push(`Admin(s) not found for creator ${userData.email}: ${notFoundEmails.join(', ')}`);
+              continue;
             }
-          });
-          
-          if (!admin) {
-            results.errors.push(`Admin with email ${userData.adminMapped} not found for creator ${userData.email}`);
-            continue;
+            assignedAdminIds = adminUsers.map(admin => admin.id);
           }
-          assignedAdminId = admin.id;
         }
-        
-        // Generate temporary password
-        const tempPassword = Math.random().toString(36).slice(-8);
-        const passwordHash = await bcrypt.hash(tempPassword, 10);
-        
+
+        // Parse courseAssigned - can be comma-separated or single value
+        let courseArray: string[] = [];
+        if (userData.courseAssigned) {
+          // Split by comma and trim, support both single and multiple courses
+          courseArray = userData.courseAssigned.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+        }
+
+        // Generate default password using firstname@123 pattern
+        const defaultPassword = generateDefaultPassword(userData.name);
+        const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
         // Create user
         const newUser = await prisma.user.create({
           data: {
+            name: userData.name,
             email: userData.email,
+            contactNumber: userData.contactNumber || null,
             role: userData.role as any,
+            courseAssigned: courseArray,
             passwordHash,
-            assignedAdminId: assignedAdminId || null,
-            name: userData.email.split('@')[0], // Use email prefix as default name
+            assignedAdminId: assignedAdminIds.length > 0 ? assignedAdminIds : [],
+            isActive: true,
           },
           select: {
             id: true,
             email: true,
             name: true,
             role: true,
-            assignedAdmin: {
-              select: { name: true, email: true }
-            }
+            courseAssigned: true,
+            assignedAdminId: true,
           }
         });
         
-        // Store temporary password for tracking
+        // Store default password for tracking
         await prisma.$executeRaw`
           INSERT INTO "TemporaryPassword" (id, "userId", email, "tempPassword", "createdAt")
-          VALUES (gen_random_uuid()::text, ${newUser.id}, ${newUser.email}, ${tempPassword}, NOW())
+          VALUES (gen_random_uuid()::text, ${newUser.id}, ${newUser.email}, ${defaultPassword}, NOW())
         `;
-        
+
         results.created++;
         results.users.push({
           ...newUser,
-          tempPassword // Include temp password in response for admin to share
+          tempPassword: defaultPassword // Include default password in response for admin to share
         });
         
       } catch (error) {
@@ -901,7 +1136,7 @@ superAdminRouter.get('/analytics/creators', async (req, res) => {
     const creators = await prisma.user.findMany({
       where: { role: 'CREATOR' },
       include: {
-        contents: {
+        Content_Content_authorIdToUser: {
           select: {
             id: true,
             status: true,
@@ -909,17 +1144,14 @@ superAdminRouter.get('/analytics/creators', async (req, res) => {
             createdAt: true,
           }
         },
-        assignedAdmin: {
-          select: { id: true, name: true, email: true }
-        },
         _count: {
-          select: { contents: true }
+          select: { Content_Content_authorIdToUser: true }
         }
       }
     });
-    
+
     const analytics = creators.map(creator => {
-      const contentStats = creator.contents.reduce((acc, content) => {
+      const contentStats = creator.Content_Content_authorIdToUser.reduce((acc, content) => {
         acc.total++;
         acc.byStatus[content.status] = (acc.byStatus[content.status] || 0) + 1;
         acc.byType[content.contentType] = (acc.byType[content.contentType] || 0) + 1;
@@ -929,19 +1161,18 @@ superAdminRouter.get('/analytics/creators', async (req, res) => {
         byStatus: {} as Record<string, number>,
         byType: {} as Record<string, number>
       });
-      
+
       return {
         id: creator.id,
         name: creator.name,
         email: creator.email,
-        assignedAdmin: creator.assignedAdmin,
         contentStats,
-        lastContentCreated: creator.contents.length > 0 
-          ? creator.contents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]?.createdAt || null
+        lastContentCreated: creator.Content_Content_authorIdToUser.length > 0
+          ? creator.Content_Content_authorIdToUser.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]?.createdAt || null
           : null
       };
     });
-    
+
     res.json({ creators: analytics });
   } catch (error) {
     console.error('Error fetching creator analytics:', error);
@@ -992,10 +1223,7 @@ superAdminRouter.get('/admins', async (req, res) => {
       select: {
         id: true,
         name: true,
-        email: true,
-        _count: {
-          select: { assignedCreators: true }
-        }
+        email: true
       },
       orderBy: { name: 'asc' }
     });
@@ -1004,5 +1232,216 @@ superAdminRouter.get('/admins', async (req, res) => {
   } catch (error) {
     console.error('Error fetching admins:', error);
     res.status(500).json({ error: 'Failed to fetch admins' });
+  }
+});
+
+// GET /api/super-admin/analytics - Get filtered analytics data with cross-filtering support
+superAdminRouter.get('/analytics', async (req, res) => {
+  try {
+    const { adminId, creatorId, month, course, section } = req.query;
+
+    // Build where clause for ContentAssignment supporting multiple filters simultaneously
+    let assignmentWhereClause: any = {};
+
+    // Apply admin filter (assignedById = admin who assigned the task)
+    if (adminId && adminId !== 'all') {
+      assignmentWhereClause.assignedById = adminId as string;
+    }
+
+    // Apply creator filter (assignedToId = creator who was assigned to)
+    if (creatorId && creatorId !== 'all') {
+      assignmentWhereClause.assignedToId = creatorId as string;
+    }
+
+    // Apply month filter
+    if (month && month !== 'all') {
+      // Parse month value (format: "2024-10")
+      const [year, monthNum] = (month as string).split('-');
+      const monthStart = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const monthEnd = new Date(parseInt(year), parseInt(monthNum), 1);
+      assignmentWhereClause.createdAt = { gte: monthStart, lt: monthEnd };
+    }
+
+    // Apply course filter
+    if (course && course !== 'all') {
+      assignmentWhereClause.course = course as string;
+    }
+
+    // Apply section filter
+    if (section && section !== 'all') {
+      assignmentWhereClause.section = section as string;
+    }
+
+    // Calculate the 4 key metrics using ContentAssignment table
+    const totalAssigned = await prisma.contentAssignment.count({
+      where: assignmentWhereClause
+    });
+
+    // Build where clause for Content based on filters
+    let contentWhereClause: any = {};
+
+    // Apply admin filter (via ContentAssignment relation)
+    if (adminId && adminId !== 'all') {
+      contentWhereClause.ContentAssignment = {
+        assignedById: adminId as string
+      };
+    }
+
+    // Apply creator filter
+    if (creatorId && creatorId !== 'all') {
+      contentWhereClause.authorId = creatorId as string;
+    }
+
+    // Apply month filter
+    if (month && month !== 'all') {
+      const [year, monthNum] = (month as string).split('-');
+      const monthStart = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const monthEnd = new Date(parseInt(year), parseInt(monthNum), 1);
+      contentWhereClause.createdAt = { gte: monthStart, lt: monthEnd };
+    }
+
+    // Apply course and section filters via ContentAssignment
+    if ((course && course !== 'all') || (section && section !== 'all')) {
+      if (!contentWhereClause.ContentAssignment) {
+        contentWhereClause.ContentAssignment = {};
+      }
+      if (course && course !== 'all') {
+        contentWhereClause.ContentAssignment.course = course as string;
+      }
+      if (section && section !== 'all') {
+        contentWhereClause.ContentAssignment.section = section as string;
+      }
+    }
+
+    // Count content by status
+    const [pendingReview, approved, rejected] = await prisma.$transaction([
+      prisma.content.count({
+        where: { ...contentWhereClause, status: 'REVIEW' }
+      }),
+      prisma.content.count({
+        where: { ...contentWhereClause, status: 'APPROVED' }
+      }),
+      prisma.content.count({
+        where: { ...contentWhereClause, status: 'REJECTED' }
+      })
+    ]);
+
+    // Calculate overview metrics (without filters - global stats)
+    const totalContent = await prisma.content.count();
+
+    const activeUsers = await prisma.user.count({
+      where: { isActive: true, role: { in: ['CREATOR', 'ADMIN'] } }
+    });
+
+    // Calculate average quality score
+    const validationResults = await prisma.validationResult.findMany({
+      select: { overallScore: true }
+    });
+    const avgQualityScore = validationResults.length > 0
+      ? validationResults.reduce((sum, r) => sum + r.overallScore, 0) / validationResults.length
+      : 0;
+
+    // Calculate overall approval rate (approved / total assigned)
+    const totalAssignedGlobal = await prisma.contentAssignment.count();
+    const allApproved = await prisma.content.count({
+      where: { status: 'APPROVED' }
+    });
+    const approvalRate = totalAssignedGlobal > 0
+      ? (allApproved / totalAssignedGlobal) * 100
+      : 0;
+
+    // Get filter options
+    // 1. Admins
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' }
+    });
+    const adminOptions = admins.map(admin => ({
+      value: admin.id,
+      label: `${admin.name} (${admin.email})`
+    }));
+
+    // 2. Creators
+    const creators = await prisma.user.findMany({
+      where: { role: 'CREATOR', isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' }
+    });
+    const creatorOptions = creators.map(creator => ({
+      value: creator.id,
+      label: `${creator.name} (${creator.email})`
+    }));
+
+    // 3. Months - only include months where assignments were created
+    const allAssignments = await prisma.contentAssignment.findMany({
+      select: { createdAt: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const monthsSet = new Set<string>();
+    allAssignments.forEach(assignment => {
+      const date = new Date(assignment.createdAt);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      monthsSet.add(`${year}-${month.toString().padStart(2, '0')}`);
+    });
+
+    const monthOptions = Array.from(monthsSet)
+      .sort((a, b) => b.localeCompare(a)) // Sort descending (newest first)
+      .map(monthValue => {
+        const [year, month] = monthValue.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+        return {
+          value: monthValue,
+          label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        };
+      });
+
+    // 4. Courses - get from ContentAssignment table
+    const allCourses = await prisma.contentAssignment.findMany({
+      where: { course: { not: null } },
+      select: { course: true },
+      distinct: ['course']
+    });
+    const courseOptions = allCourses
+      .filter(item => item.course)
+      .map(item => ({
+        value: item.course!,
+        label: item.course!
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    // 5. Sections
+    const sectionOptions = [
+      { value: 'PRE_ORDER', label: 'Pre-Order' },
+      { value: 'IN_ORDER', label: 'In-Order' },
+      { value: 'POST_ORDER', label: 'Post-Order' }
+    ];
+
+    res.json({
+      metrics: {
+        totalAssigned,
+        pendingReview,
+        approved,
+        rejected
+      },
+      overview: {
+        totalContent,
+        activeUsers,
+        avgQualityScore,
+        approvalRate
+      },
+      filterOptions: {
+        admins: adminOptions,
+        creators: creatorOptions,
+        months: monthOptions,
+        courses: courseOptions,
+        sections: sectionOptions
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });

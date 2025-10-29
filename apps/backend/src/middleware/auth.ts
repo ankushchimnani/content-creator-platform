@@ -1,13 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 
-export interface AuthPayload { 
-  sub: string; 
+const prisma = new PrismaClient();
+
+export interface AuthPayload {
+  sub: string;
   id: string;
-  role: string; 
-  email: string; 
+  role: string;
+  email: string;
   name?: string;
-  assignedAdminId?: string;
 }
 
 declare global {
@@ -38,6 +40,33 @@ export function requireRole(roles: string[]) {
     if (!roles.includes(user.role)) return res.status(403).json({ error: 'Forbidden' });
     next();
   };
+}
+
+// Middleware to check if user account is active
+export async function requireActiveUser(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Fetch user from database to check isActive status
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { isActive: true }
+    });
+
+    if (!dbUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!dbUser.isActive) {
+      return res.status(403).json({ error: 'Account is inactive. Please contact your administrator.' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error checking user active status:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 

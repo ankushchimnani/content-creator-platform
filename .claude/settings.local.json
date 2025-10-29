@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run seed:*)",
+      "Bash(npm run build:*)",
+      "Bash(rm:*)",
+      "Bash(npm install:*)",
+      "Bash(git checkout:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(python update_dark_mode.py:*)",
+      "Bash(npm run dev:*)",
+      "Bash(cat:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma migrate deploy)",
+      "Bash(npx prisma generate:*)",
+      "Bash(dir:*)",
+      "Bash(npx prisma migrate resolve:*)",
+      "Bash(npx prisma db pull:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(npx prisma format:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(timeout:*)",
+      "Bash(npx tsx:*)",
+      "Bash(powershell -Command \"Get-Content ''apps\\backend\\.tsx-cache\\*.log'' -Tail 50 2>$null | Select-String -Pattern ''Error updating|Error message|PrismaClientValidationError'' -Context 5\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
